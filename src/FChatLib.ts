@@ -4,19 +4,188 @@ import {IPlugin} from "./Interfaces/IPlugin";
 import {IFChatLib} from "./Interfaces/IFChatLib";
 import {IConfig} from "./Interfaces/IConfig";
 import {IMsgEvent} from "./Interfaces/IMsgEvent";
-let WebSocketClient = require('ws');
-let request = require("request");
-let jsonfile = require('jsonfile');
-let fs = require('fs');
-const throttle = require('throttle-function');
-let pingInterval;
+import { io, Socket } from 'socket.io-client';
+import request from "request";
+import { writeFileSync, statSync, mkdirSync, existsSync, readFileSync } from 'node:fs';
+import { z } from 'zod';
 let configDir = process.cwd()+"/config";
 let fileRoomsJs = "/config.rooms.js";
 
+// Zod schemas for event types
+export const ConnectionEventSchema = z.object({
+    count: z.number()
+});
+
+export const ChatOPListEventSchema = z.object({
+    oplist: z.array(z.string()),
+    channel: z.string()
+});
+
+export const ChatOPAddedEventSchema = z.object({
+    channel: z.string(),
+    character: z.string()
+});
+
+export const ChatOPRemovedEventSchema = z.object({
+    channel: z.string(),
+    character: z.string()
+});
+
+export const OfflineEventSchema = z.object({
+    character: z.string()
+});
+
+export const InitialChannelDataEventSchema = z.object({
+    users: z.array(z.object({ identity: z.string() })),
+    channel: z.string(),
+    mode: z.literal('chat')
+});
+
+export const InviteEventSchema = z.object({
+    channel: z.string(),
+    character: z.string()
+});
+
+export const JoinEventSchema = z.object({
+    title: z.string(),
+    channel: z.string(),
+    character: z.object({ identity: z.string() })
+});
+
+export const KickEventSchema = z.object({
+    operator: z.string(),
+    channel: z.string(),
+    character: z.string()
+});
+
+export const LeaveEventSchema = z.object({
+    channel: z.string(),
+    character: z.string()
+});
+
+export const MessageEventSchema = z.object({
+    character: z.string(),
+    message: z.string(),
+    channel: z.string()
+});
+
+export const VariableEventSchema = z.object({
+    variable: z.string(),
+    value: z.number()
+});
+
+export const ListEventSchema = z.object({
+    characters: z.array(z.tuple([z.string(), z.string(), z.string(), z.string()]))
+});
+
+export const FriendsAndBookmarksEventSchema = z.object({
+    characters: z.array(z.string())
+});
+
+export const IdentityEventSchema = z.object({
+    character: z.string()
+});
+
+export const TypingStatusEventSchema = z.object({
+    character: z.string(),
+    status: z.string()
+});
+
+export const SystemMessageEventSchema = z.object({
+    message: z.string(),
+    channel: z.string()
+});
+
+export const ProfileDataEventSchema = z.object({
+    type: z.string(),
+    message: z.string(),
+    key: z.string(),
+    value: z.string()
+});
+
+export const OnlineEventSchema = z.object({
+    character: z.string()
+});
+
+export const PingEventSchema = z.undefined();
+
+export const PrivateMessageEventSchema = z.object({
+    character: z.string(),
+    message: z.string()
+});
+
+export const DescriptionChangeEventSchema = z.object({
+    channel: z.string(),
+    description: z.string()
+});
+
+export const RollEventRollSchema = z.object({
+    channel: z.string(),
+    results: z.array(z.number()),
+    type: z.string(),
+    message: z.string(),
+    rolls: z.array(z.string()),
+    character: z.string(),
+    endresult: z.number()
+});
+
+export const RollEventBottleSchema = z.object({
+    target: z.string(),
+    channel: z.string(),
+    message: z.string(),
+    type: z.literal('bottle'),
+    character: z.string()
+});
+
+export const RollEventSchema = z.discriminatedUnion('type', [
+    RollEventRollSchema,
+    RollEventBottleSchema
+]);
+
+export const StatusEventSchema = z.object({
+    status: z.string(),
+    character: z.string(),
+    statusmsg: z.string()
+});
+
+export const BanEventSchema = z.object({
+    operator: z.string(),
+    channel: z.string(),
+    character: z.string()
+});
+
+// Type inference from schemas
+export type ConnectionEvent = z.infer<typeof ConnectionEventSchema>;
+export type ChatOPListEvent = z.infer<typeof ChatOPListEventSchema>;
+export type ChatOPAddedEvent = z.infer<typeof ChatOPAddedEventSchema>;
+export type ChatOPRemovedEvent = z.infer<typeof ChatOPRemovedEventSchema>;
+export type OfflineEvent = z.infer<typeof OfflineEventSchema>;
+export type InitialChannelDataEvent = z.infer<typeof InitialChannelDataEventSchema>;
+export type InviteEvent = z.infer<typeof InviteEventSchema>;
+export type JoinEvent = z.infer<typeof JoinEventSchema>;
+export type KickEvent = z.infer<typeof KickEventSchema>;
+export type LeaveEvent = z.infer<typeof LeaveEventSchema>;
+export type MessageEvent = z.infer<typeof MessageEventSchema>;
+export type VariableEvent = z.infer<typeof VariableEventSchema>;
+export type ListEvent = z.infer<typeof ListEventSchema>;
+export type FriendsAndBookmarksEvent = z.infer<typeof FriendsAndBookmarksEventSchema>;
+export type IdentityEvent = z.infer<typeof IdentityEventSchema>;
+export type TypingStatusEvent = z.infer<typeof TypingStatusEventSchema>;
+export type SystemMessageEvent = z.infer<typeof SystemMessageEventSchema>;
+export type ProfileDataEvent = z.infer<typeof ProfileDataEventSchema>;
+export type OnlineEvent = z.infer<typeof OnlineEventSchema>;
+export type PingEvent = z.infer<typeof PingEventSchema>;
+export type PrivateMessageEvent = z.infer<typeof PrivateMessageEventSchema>;
+export type DescriptionChangeEvent = z.infer<typeof DescriptionChangeEventSchema>;
+export type RollEvent = z.infer<typeof RollEventSchema>;
+export type StatusEvent = z.infer<typeof StatusEventSchema>;
+export type BanEvent = z.infer<typeof BanEventSchema>;
+
+export type FChatListener<T> = (event: T) => Promise<void>;
 
 export default class FChatLib implements IFChatLib{
 
-    addConnectionListener(fn:Function):void{
+    addConnectionListener(fn:FChatListener<ConnectionEvent>):void{
         this.removeConnectionListener(fn);
         this.connectionListeners.push(fn);
     }
@@ -330,44 +499,44 @@ export default class FChatLib implements IFChatLib{
 
     config:IConfig = null;
 
-    banListeners = [];
-    chatOPAddedListeners = [];
-    chatOPListListeners = [];
-    chatOPRemovedListeners = [];
-    connectionListeners = [];
-    descriptionChangeListeners = [];
-    initialChannelDataListeners = [];
-    inviteListeners = [];
-    joinListeners = [];
-    kickListeners = [];
-    leaveListeners = [];
-    messageListeners = [];
-    offlineListeners = [];
-    onlineListeners = [];
-    pingListeners = [];
-    privateMessageListeners = [];
-    rollListeners = [];
-    statusListeners = [];
-    variableListeners = [];
-    genericEventListeners = [];
-    listListeners = [];
-    friendsAndBookmarksListeners = [];
-    identityListeners = [];
-    typingStatusListeners = [];
-    systemMessageListeners = [];
-    profileDataListeners = [];
+    banListeners: FChatListener<BanEvent>[] = [];
+    chatOPAddedListeners: FChatListener<ChatOPAddedEvent>[] = [];
+    chatOPListListeners: FChatListener<ChatOPListEvent>[] = [];
+    chatOPRemovedListeners: FChatListener<ChatOPRemovedEvent>[] = [];
+    connectionListeners: FChatListener<ConnectionEvent>[] = [];
+    descriptionChangeListeners: FChatListener<DescriptionChangeEvent>[] = [];
+    initialChannelDataListeners: FChatListener<InitialChannelDataEvent>[] = [];
+    inviteListeners: FChatListener<InviteEvent>[] = [];
+    joinListeners: FChatListener<JoinEvent>[] = [];
+    kickListeners: FChatListener<KickEvent>[] = [];
+    leaveListeners: FChatListener<LeaveEvent>[] = [];
+    messageListeners: FChatListener<MessageEvent>[] = [];
+    offlineListeners: FChatListener<OfflineEvent>[] = [];
+    onlineListeners: FChatListener<OnlineEvent>[] = [];
+    pingListeners: FChatListener<PingEvent>[] = [];
+    privateMessageListeners: FChatListener<PrivateMessageEvent>[] = [];
+    rollListeners: FChatListener<RollEvent>[] = [];
+    statusListeners: FChatListener<StatusEvent>[] = [];
+    variableListeners: FChatListener<VariableEvent>[] = [];
+    genericEventListeners: FChatListener<unknown>[] = [];
+    listListeners: FChatListener<ListEvent>[] = [];
+    friendsAndBookmarksListeners: FChatListener<FriendsAndBookmarksEvent>[] = [];
+    identityListeners: FChatListener<IdentityEvent>[] = [];
+    typingStatusListeners: FChatListener<TypingStatusEvent>[] = [];
+    systemMessageListeners: FChatListener<SystemMessageEvent>[] = [];
+    profileDataListeners: FChatListener<ProfileDataEvent>[] = [];
 
     usersInChannel:string[][] = [];
     chatOPsInChannel:string[][] = [];
-    commandHandlers = [];
+    commandHandlers: CommandHandler[] = [];
     users:string[][] = [];
 
     channels:Map<string, Array<IPlugin>> = new Map<string, Array<IPlugin>>();
     channelNames:Map<string, string> = new Map<string, string>();
 
-    ws:any;
+    ws: Socket;
 
-    pingInterval:NodeJS.Timer;
+    pingInterval:NodeJS.Timeout;
 
     floodLimit:number = 2.0;
     lastTimeCommandReceived:number = Number.MAX_VALUE;
@@ -407,8 +576,8 @@ export default class FChatLib implements IFChatLib{
         }
 
         try {
-            if (fs.statSync(configDir+fileRoomsJs)) {
-                this.channels = new Map(JSON.parse(jsonfile.readFileSync(configDir+fileRoomsJs)));
+            if (statSync(configDir+fileRoomsJs)) {
+                this.channels = new Map(JSON.parse(readFileSync(configDir+fileRoomsJs, 'utf8')));
             }
         }
         catch(err){}
@@ -471,7 +640,7 @@ export default class FChatLib implements IFChatLib{
         this.joinNewChannel(args.name);
     }
 
-    joinChannelOnConnect(args) {
+    async joinChannelOnConnect(args: ConnectionEvent) {
         for(let room of this.channels.keys()) {
             this.sendWS('JCH', { channel: room });
         }
@@ -646,8 +815,9 @@ export default class FChatLib implements IFChatLib{
     }
 
     sendWS(command, object) {
-        if (this.ws.readyState)
-            this.ws.send(command + ' ' + JSON.stringify(object));
+        if (this.ws && this.ws.connected) {
+            this.ws.emit('message', command + ' ' + JSON.stringify(object));
+        }
     }
 
     sendMessage(message, channel){
@@ -712,8 +882,10 @@ export default class FChatLib implements IFChatLib{
         return (username == this.config.master);
     }
 
-    disconnect():void{
-        this.ws.close();
+    disconnect():void {
+        if (this.ws) {
+            this.ws.disconnect();
+        }
     }
 
     restart():void{
@@ -733,8 +905,8 @@ export default class FChatLib implements IFChatLib{
     }
 
     updateRoomsConfig():void{
-        if (!fs.existsSync(configDir)){
-            fs.mkdirSync(configDir);
+        if (!existsSync(configDir)){
+            mkdirSync(configDir);
         }
 
         let ignoredKeys = ["instanciatedPlugin"];
@@ -751,182 +923,268 @@ export default class FChatLib implements IFChatLib{
             return value;
         });
 
-        jsonfile.writeFile(configDir+fileRoomsJs, tempJson);
+        writeFileSync(configDir+fileRoomsJs, tempJson);
     }
 
 
     startWebsockets(json):void {
-        if (this.config.debug == true) {
-            this.ws = new WebSocketClient('wss://chat.f-list.net/chat2');
-        }
-        else {
-            this.ws = new WebSocketClient('wss://chat.f-list.net/chat2');
-        }
-
-        this.ws.on('open', (data) => {
-            console.log("Started WS");
-            this.sendWS('IDN', json);
-            clearInterval(pingInterval);
-            this.pingInterval = setInterval(() => { this.ws.send('PIN'); }, 25000);
+        const socketUrl = 'wss://chat.f-list.net/chat2';
+        
+        this.ws = io(socketUrl, {
+            transports: ['websocket'],
+            reconnection: true,
+            reconnectionAttempts: 5,
+            reconnectionDelay: 1000
         });
 
-        this.ws.on('close', (data) => {
-            console.log("Closed WS");
+        this.ws.on('connect', () => {
+            console.log("Started Socket.IO connection");
+            this.sendWS('IDN', json);
+            clearInterval(this.pingInterval);
+            this.pingInterval = setInterval(() => { this.ws.emit('message', 'PIN'); }, 25000);
+        });
+
+        this.ws.on('disconnect', () => {
+            console.log("Closed Socket.IO connection");
             process.exit();
         });
 
-        this.ws.on('error', (data) => {
-            console.log("Disconnected WS");
+        this.ws.on('connect_error', (error) => {
+            console.error("Socket.IO connection error:", error);
             setTimeout(() => { this.connect(); }, 4000);
         });
 
-        this.ws.on('message', (data, flags) => {
+        this.ws.on('message', async (data) => {
             let command:string;
             let argument:any;
             if(this.config.debug){
                 console.log(data);
             }
             if (data != null) {
-                command = argument = "";
-                command = this.splitOnce(data, " ")[0].trim();
-                try{
-                    if(data.substring(command.length).trim() != ""){
-                        argument = JSON.parse(data.substring(command.length).trim());
+                try {
+                    command = argument = "";
+                    command = this.splitOnce(data, " ")[0].trim();
+                    if(data.toString().substring(command.length).trim() != ""){
+                        argument = JSON.parse(data.toString().substring(command.length).trim());
                     }
-                }
-                catch (e) {
-                }
-                switch (command) {
-                    case "CON"://CON { "count": int }
-                        for (let i =0; i< this.connectionListeners.length; i++) {
-                            this.connectionListeners[i].call(this, argument);
-                        }
-                        break;
-                    case "COL": //COL {"oplist":["Newhalf Wrestling","Nastasya Bates","Rinko Saitou"],"channel":"ADH-d0bde7daca1dbe6c79ba"}
-                        for (let i =0; i< this.chatOPListListeners.length; i++) {
-                            this.chatOPListListeners[i].call(this, argument);
-                        }
-                        break;
-                    case "COA": //COA { "channel": string, "character": string }
-                        for (let i =0; i< this.chatOPAddedListeners.length; i++) {
-                            this.chatOPAddedListeners[i].call(this, argument);
-                        }
-                        break;
-                    case "COR": //COR { "channel": string, "character": string }
-                        for (let i =0; i< this.chatOPRemovedListeners.length; i++) {
-                            this.chatOPRemovedListeners[i].call(this, argument);
-                        }
-                        break;
-                    case "FLN": //FLN {"character":"The Kid"}
-                        for (let i =0; i< this.offlineListeners.length; i++) {
-                            this.offlineListeners[i].call(this, argument);
-                        }
-                        break;
-                    case "ICH": //ICH {"users": [{"identity": "Shadlor"}, {"identity": "Bunnie Patcher"}, {"identity": "DemonNeko"}, {"identity": "Desbreko"}, {"identity": "Robert Bell"}, {"identity": "Jayson"}, {"identity": "Valoriel Talonheart"}, {"identity": "Jordan Costa"}, {"identity": "Skip Weber"}, {"identity": "Niruka"}, {"identity": "Jake Brian Purplecat"}, {"identity": "Hexxy"}], "channel": "Frontpage", mode: "chat"}
-                        for (let i =0; i< this.initialChannelDataListeners.length; i++) {
-                            this.initialChannelDataListeners[i].call(this, argument);
-                        }
-                        break;
-                    case "JCH": //JCH {"title":"Newhalf Sexual Federation of Wrestling","channel":"ADH-d0bde7daca1dbe6c79ba","character":{"identity":"Kirijou Mitsuru"}}
-                        for (let i =0; i< this.joinListeners.length; i++) {
-                            this.joinListeners[i].call(this, argument);
-                        }
-                        break;
-                    case "LCH": //LCH {"character":"Darent","channel":"ADH-d0bde7daca1dbe6c79ba"}
-                        for (let i =0; i< this.leaveListeners.length; i++) {
-                            this.leaveListeners[i].call(this, argument);
-                        }
-                        break;
-                    case "NLN": //FLN {"character":"The Kid"}
-                        for (let i =0; i< this.onlineListeners.length; i++) {
-                            this.onlineListeners[i].call(this, argument);
-                        }
-                        break;
-                    case "PIN": //PIN
-                        for (let i =0; i< this.pingListeners.length; i++) {
-                            this.pingListeners[i].call(this, argument);
-                        }
-                        break;
-                    case "RLL"://RLL {"channel": string, "results": [int], "type": enum, "message": string, "rolls": [string], "character": string, "endresult": int} OR RLL {"target":"string","channel":"string","message":"string","type":"bottle","character":"string"}
-                        for (let i =0; i< this.rollListeners.length; i++) {
-                            this.rollListeners[i].call(this, argument);
-                        }
-                        break;
-                    case "STA": //STA { status: "status", character: "channel", statusmsg:"statusmsg" }
-                        for (let i =0; i< this.statusListeners.length; i++) {
-                            this.statusListeners[i].call(this, argument);
-                        }
-                        break;
-                    case "CBU": //CBU {"operator":string,"channel":string,"character":string}
-                        for (let i =0; i< this.kickListeners.length; i++) {
-                            this.kickListeners[i].call(this, argument);
-                        }
-                        break;
-                    case "CKU": //CKU {"operator":string,"channel":string,"character":string}
-                        for (let i =0; i< this.banListeners.length; i++) {
-                            this.banListeners[i].call(this, argument);
-                        }
-                        break;
-                    case "CDS": //CDS { "channel": string, "description": string }
-                        for (let i =0; i< this.descriptionChangeListeners.length; i++) {
-                            this.descriptionChangeListeners[i].call(this, argument);
-                        }
-                        break;
-                    case "CIU": //CIU { "sender":string,"title":string,"name":string }
-                        for (let i =0; i< this.inviteListeners.length; i++) {
-                            this.inviteListeners[i].call(this, argument);
-                        }
-                        break;
-                    case "PRI": //PRI { "character": string, "message": string }
-                        for (let i =0; i< this.privateMessageListeners.length; i++) {
-                            this.privateMessageListeners[i].call(this, argument);
-                        }
-                        break;
-                    case "MSG": //MSG { "character": string, "message": string, "channel": string }
-                        for (let i =0; i< this.messageListeners.length; i++) {
-                            this.messageListeners[i].call(this, argument);
-                        }
-                        break;
-                    case "VAR": //VAR { "variable": string, "value": int/float }
-                        for (let i =0; i< this.variableListeners.length; i++) {
-                            this.variableListeners[i].call(this, argument);
-                        }
-                        break;
-                    case "LIS": //LIS {"characters": [["Alexandrea", "Female", "online", ""], ["Fa Mulan", "Female", "busy", "Away, check out my new alt Aya Kinjou!"]]}
-                        for (let i =0; i< this.listListeners.length; i++) {
-                            this.listListeners[i].call(this, argument);
-                        }
-                        break;
-                    case "FRL": //FRL {"characters":["Aelith Blanchette"]}
-                        for (let i =0; i< this.friendsAndBookmarksListeners.length; i++) {
-                            this.friendsAndBookmarksListeners[i].call(this, argument);
-                        }
-                        break;
-                    case "IDN": //IDN { "character": string }
-                        for (let i =0; i< this.identityListeners.length; i++) {
-                            this.identityListeners[i].call(this, argument);
-                        }
-                        break;
-                    case "TPN": //TPN { "character": string, "status": enum }
-                        for (let i =0; i< this.typingStatusListeners.length; i++) {
-                            this.typingStatusListeners[i].call(this, argument);
-                        }
-                        break;
-                    case "SYS": //SYS { "message": string, "channel": string }
-                        for (let i =0; i< this.systemMessageListeners.length; i++) {
-                            this.systemMessageListeners[i].call(this, argument);
-                        }
-                        break;
-                    case "PRD": //PRD { "type": enum, "message": string, "key": string, "value": string }
-                        for (let i =0; i< this.profileDataListeners.length; i++) {
-                            this.profileDataListeners[i].call(this, argument);
-                        }
-                        break;
-                    default:
-                        for (let i =0; i< this.genericEventListeners.length; i++) {
-                            this.genericEventListeners[i].call(this, argument);
-                        }
-                        break;
+
+                    // Handle all listeners in parallel for better performance
+                    const listenerPromises: Promise<void>[] = [];
+
+                    switch (command) {
+                        case "CON":
+                            const conEvent = ConnectionEventSchema.safeParse(argument);
+                            if (conEvent.success) {
+                                listenerPromises.push(...this.connectionListeners.map(listener => listener.call(this, conEvent.data)));
+                            } else {
+                                console.error("Error parsing ConnectionEvent:", conEvent.error);
+                            }
+                            break;
+                        case "COL":
+                            const colEvent = ChatOPListEventSchema.safeParse(argument);
+                            if (colEvent.success) {
+                                listenerPromises.push(...this.chatOPListListeners.map(listener => listener.call(this, colEvent.data)));
+                            } else {
+                                console.error("Error parsing ChatOPListEvent:", colEvent.error);
+                            }
+                            break;
+                        case "COA":
+                            const coaEvent = ChatOPAddedEventSchema.safeParse(argument);
+                            if (coaEvent.success) {
+                                listenerPromises.push(...this.chatOPAddedListeners.map(listener => listener.call(this, coaEvent.data)));
+                            } else {
+                                console.error("Error parsing ChatOPAddedEvent:", coaEvent.error);
+                            }
+                            break;
+                        case "COR":
+                            const corEvent = ChatOPRemovedEventSchema.safeParse(argument);
+                            if (corEvent.success) {
+                                listenerPromises.push(...this.chatOPRemovedListeners.map(listener => listener.call(this, corEvent.data)));
+                            } else {
+                                console.error("Error parsing ChatOPRemovedEvent:", corEvent.error);
+                            }
+                            break;
+                        case "FLN":
+                            const flnEvent = OfflineEventSchema.safeParse(argument);
+                            if (flnEvent.success) {
+                                listenerPromises.push(...this.offlineListeners.map(listener => listener.call(this, flnEvent.data)));
+                            } else {
+                                console.error("Error parsing OfflineEvent:", flnEvent.error);
+                            }
+                            break;
+                        case "ICH":
+                            const ichEvent = InitialChannelDataEventSchema.safeParse(argument);
+                            if (ichEvent.success) {
+                                listenerPromises.push(...this.initialChannelDataListeners.map(listener => listener.call(this, ichEvent.data)));
+                            } else {
+                                console.error("Error parsing InitialChannelDataEvent:", ichEvent.error);
+                            }
+                            break;
+                        case "JCH":
+                            const jchEvent = JoinEventSchema.safeParse(argument);
+                            if (jchEvent.success) {
+                                listenerPromises.push(...this.joinListeners.map(listener => listener.call(this, jchEvent.data)));
+                            } else {
+                                console.error("Error parsing JoinEvent:", jchEvent.error);
+                            }
+                            break;
+                        case "LCH":
+                            const lchEvent = LeaveEventSchema.safeParse(argument);
+                            if (lchEvent.success) {
+                                listenerPromises.push(...this.leaveListeners.map(listener => listener.call(this, lchEvent.data)));
+                            } else {
+                                console.error("Error parsing LeaveEvent:", lchEvent.error);
+                            }
+                            break;
+                        case "NLN":
+                            const nlnEvent = OnlineEventSchema.safeParse(argument);
+                            if (nlnEvent.success) {
+                                listenerPromises.push(...this.onlineListeners.map(listener => listener.call(this, nlnEvent.data)));
+                            } else {
+                                console.error("Error parsing OnlineEvent:", nlnEvent.error);
+                            }
+                            break;
+                        case "PIN":
+                            const pinEvent = PingEventSchema.safeParse(argument);
+                            if (pinEvent.success) {
+                                listenerPromises.push(...this.pingListeners.map(listener => listener.call(this, pinEvent.data)));
+                            } else {
+                                console.error("Error parsing PingEvent:", pinEvent.error);
+                            }
+                            break;
+                        case "RLL":
+                            const rllEvent = RollEventSchema.safeParse(argument);
+                            if (rllEvent.success) {
+                                listenerPromises.push(...this.rollListeners.map(listener => listener.call(this, rllEvent.data)));
+                            } else {
+                                console.error("Error parsing RollEvent:", rllEvent.error);
+                            }
+                            break;
+                        case "STA":
+                            const staEvent = StatusEventSchema.safeParse(argument);
+                            if (staEvent.success) {
+                                listenerPromises.push(...this.statusListeners.map(listener => listener.call(this, staEvent.data)));
+                            } else {
+                                console.error("Error parsing StatusEvent:", staEvent.error);
+                            }
+                            break;
+                        case "CBU":
+                            const cbuEvent = KickEventSchema.safeParse(argument);
+                            if (cbuEvent.success) {
+                                listenerPromises.push(...this.kickListeners.map(listener => listener.call(this, cbuEvent.data)));
+                            } else {
+                                console.error("Error parsing KickEvent:", cbuEvent.error);
+                            }
+                            break;
+                        case "CKU":
+                            const ckuEvent = BanEventSchema.safeParse(argument);
+                            if (ckuEvent.success) {
+                                listenerPromises.push(...this.banListeners.map(listener => listener.call(this, ckuEvent.data)));
+                            } else {
+                                console.error("Error parsing BanEvent:", ckuEvent.error);
+                            }
+                            break;
+                        case "CDS":
+                            const cdsEvent = DescriptionChangeEventSchema.safeParse(argument);
+                            if (cdsEvent.success) {
+                                listenerPromises.push(...this.descriptionChangeListeners.map(listener => listener.call(this, cdsEvent.data)));
+                            } else {
+                                console.error("Error parsing DescriptionChangeEvent:", cdsEvent.error);
+                            }
+                            break;
+                        case "CIU":
+                            const ciuEvent = InviteEventSchema.safeParse(argument);
+                            if (ciuEvent.success) {
+                                listenerPromises.push(...this.inviteListeners.map(listener => listener.call(this, ciuEvent.data)));
+                            } else {
+                                console.error("Error parsing InviteEvent:", ciuEvent.error);
+                            }
+                            break;
+                        case "PRI":
+                            const priEvent = PrivateMessageEventSchema.safeParse(argument);
+                            if (priEvent.success) {
+                                listenerPromises.push(...this.privateMessageListeners.map(listener => listener.call(this, priEvent.data)));
+                            } else {
+                                console.error("Error parsing PrivateMessageEvent:", priEvent.error);
+                            }
+                            break;
+                        case "MSG":
+                            const msgEvent = MessageEventSchema.safeParse(argument);
+                            if (msgEvent.success) {
+                                listenerPromises.push(...this.messageListeners.map(listener => listener.call(this, msgEvent.data)));
+                            } else {
+                                console.error("Error parsing MessageEvent:", msgEvent.error);
+                            }
+                            break;
+                        case "VAR":
+                            const varEvent = VariableEventSchema.safeParse(argument);
+                            if (varEvent.success) {
+                                listenerPromises.push(...this.variableListeners.map(listener => listener.call(this, varEvent.data)));
+                            } else {
+                                console.error("Error parsing VariableEvent:", varEvent.error);
+                            }
+                            break;
+                        case "LIS":
+                            const lisEvent = ListEventSchema.safeParse(argument);
+                            if (lisEvent.success) {
+                                listenerPromises.push(...this.listListeners.map(listener => listener.call(this, lisEvent.data)));
+                            } else {
+                                console.error("Error parsing ListEvent:", lisEvent.error);
+                            }
+                            break;
+                        case "FRL":
+                            const frlEvent = FriendsAndBookmarksEventSchema.safeParse(argument);
+                            if (frlEvent.success) {
+                                listenerPromises.push(...this.friendsAndBookmarksListeners.map(listener => listener.call(this, frlEvent.data)));
+                            } else {
+                                console.error("Error parsing FriendsAndBookmarksEvent:", frlEvent.error);
+                            }
+                            break;
+                        case "IDN":
+                            const idnEvent = IdentityEventSchema.safeParse(argument);
+                            if (idnEvent.success) {
+                                listenerPromises.push(...this.identityListeners.map(listener => listener.call(this, idnEvent.data)));
+                            } else {
+                                console.error("Error parsing IdentityEvent:", idnEvent.error);
+                            }
+                            break;
+                        case "TPN":
+                            const tpnEvent = TypingStatusEventSchema.safeParse(argument);
+                            if (tpnEvent.success) {
+                                listenerPromises.push(...this.typingStatusListeners.map(listener => listener.call(this, tpnEvent.data)));
+                            } else {
+                                console.error("Error parsing TypingStatusEvent:", tpnEvent.error);
+                            }
+                            break;
+                        case "SYS":
+                            const sysEvent = SystemMessageEventSchema.safeParse(argument);
+                            if (sysEvent.success) {
+                                listenerPromises.push(...this.systemMessageListeners.map(listener => listener.call(this, sysEvent.data)));
+                            } else {
+                                console.error("Error parsing SystemMessageEvent:", sysEvent.error);
+                            }
+                            break;
+                        case "PRD":
+                            const prdEvent = ProfileDataEventSchema.safeParse(argument);
+                            if (prdEvent.success) {
+                                listenerPromises.push(...this.profileDataListeners.map(listener => listener.call(this, prdEvent.data)));
+                            } else {
+                                console.error("Error parsing ProfileDataEvent:", prdEvent.error);
+                            }
+                            break;
+                        default:
+                            listenerPromises.push(...this.genericEventListeners.map(listener => listener.call(this, argument)));
+                            break;
+                    }
+
+                    // Wait for all listeners to complete
+                    await Promise.allSettled(listenerPromises);
+                } catch (error) {
+                    console.error('Error processing message:', error);
+                    // Optionally notify about the error
+                    if (this.config.master) {
+                        this.sendPrivMessage(`Error processing message: ${error.message}`, this.config.master);
+                    }
                 }
             }
         });

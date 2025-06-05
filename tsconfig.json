@@ -6,11 +6,13 @@
     "types": ["node", "jasmine"],
     "declaration": true,
     "outDir": "./dist",
+    "esModuleInterop": true,
     "pretty": true
   },
   "exclude": [
     "node_modules",
     "node_modules/**",
+    "test/**",
     "dist"
   ],
   "include": [
