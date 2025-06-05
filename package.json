@@ -5,12 +5,12 @@
   "main": "dist/FChatLib.js",
   "types": "dist/FChatLib.d.ts",
   "author": {
-    "name": "AelithBlanchett",
-    "email": "tonyteur@yahoo.fr"
+    "name": "AoiTakara",
+    "email": "aoi.takara.vtuber@gmail.com"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/AelithBlanchett/fchatlib.git"
+    "url": "git+https://github.com/AoiTakara/fchatlib.git"
   },
   "scripts": {
     "build": "rimraf dist && tsc",
