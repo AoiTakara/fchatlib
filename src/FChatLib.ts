@@ -8,113 +8,255 @@ import request from "request";
 import { writeFileSync, statSync, mkdirSync, existsSync, readFileSync } from 'node:fs';
 import { z } from 'zod';
 
+// Type interfaces for event types
+export interface ConnectionEvent {
+    count: number;
+}
+
+export interface ChatOPListEvent {
+    oplist: string[];
+    channel: string;
+}
+
+export interface ChatOPAddedEvent {
+    channel: string;
+    character: string;
+}
+
+export interface ChatOPRemovedEvent {
+    channel: string;
+    character: string;
+}
+
+export interface OfflineEvent {
+    character: string;
+}
+
+export interface InitialChannelDataEvent {
+    users: { identity: string }[];
+    channel: string;
+    mode: 'chat';
+}
+
+export interface InviteEvent {
+    channel: string;
+    character: string;
+}
+
+export interface JoinEvent {
+    title: string;
+    channel: string;
+    character: { identity: string };
+}
+
+export interface KickEvent {
+    operator: string;
+    channel: string;
+    character: string;
+}
+
+export interface LeaveEvent {
+    channel: string;
+    character: string;
+}
+
+export interface MessageEvent {
+    character: string;
+    message: string;
+    channel: string;
+}
+
+export interface VariableEvent {
+    variable: string;
+    value: number;
+}
+
+export interface ListEvent {
+    characters: [string, string, string, string][];
+}
+
+export interface FriendsAndBookmarksEvent {
+    characters: string[];
+}
+
+export interface IdentityEvent {
+    character: string;
+}
+
+export interface TypingStatusEvent {
+    character: string;
+    status: string;
+}
+
+export interface SystemMessageEvent {
+    message: string;
+    channel: string;
+}
+
+export interface ProfileDataEvent {
+    type: string;
+    message: string;
+    key: string;
+    value: string;
+}
+
+export interface OnlineEvent {
+    character: string;
+}
+
+export type PingEvent = undefined;
+
+export interface PrivateMessageEvent {
+    character: string;
+    message: string;
+}
+
+export interface DescriptionChangeEvent {
+    channel: string;
+    description: string;
+}
+
+export interface RollEventRoll {
+    channel: string;
+    results: number[];
+    type: string;
+    message: string;
+    rolls: string[];
+    character: string;
+    endresult: number;
+}
+
+export interface RollEventBottle {
+    target: string;
+    channel: string;
+    message: string;
+    type: 'bottle';
+    character: string;
+}
+
+export type RollEvent = RollEventRoll | RollEventBottle;
+
+export interface StatusEvent {
+    status: string;
+    character: string;
+    statusmsg: string;
+}
+
+export interface BanEvent {
+    operator: string;
+    channel: string;
+    character: string;
+}
+
+export type FChatListener<T> = (event: T) => Promise<void> | void;
+
 // Zod schemas for event types
 export const ConnectionEventSchema = z.object({
     count: z.number()
-});
+}).required();
 
 export const ChatOPListEventSchema = z.object({
     oplist: z.array(z.string()),
     channel: z.string()
-});
+}).required();
 
 export const ChatOPAddedEventSchema = z.object({
     channel: z.string(),
     character: z.string()
-});
+}).required();
 
 export const ChatOPRemovedEventSchema = z.object({
     channel: z.string(),
     character: z.string()
-});
+}).required();
 
 export const OfflineEventSchema = z.object({
     character: z.string()
-});
+}).required();
 
 export const InitialChannelDataEventSchema = z.object({
     users: z.array(z.object({ identity: z.string() })),
     channel: z.string(),
     mode: z.literal('chat')
-});
+}).required();
 
 export const InviteEventSchema = z.object({
     channel: z.string(),
     character: z.string()
-});
+}).required();
 
 export const JoinEventSchema = z.object({
     title: z.string(),
     channel: z.string(),
     character: z.object({ identity: z.string() })
-});
+}).required();
 
 export const KickEventSchema = z.object({
     operator: z.string(),
     channel: z.string(),
     character: z.string()
-});
+}).required();
 
 export const LeaveEventSchema = z.object({
     channel: z.string(),
     character: z.string()
-});
+}).required();
 
 export const MessageEventSchema = z.object({
     character: z.string(),
     message: z.string(),
     channel: z.string()
-});
+}).required();
 
 export const VariableEventSchema = z.object({
     variable: z.string(),
     value: z.number()
-});
+}).required();
 
 export const ListEventSchema = z.object({
     characters: z.array(z.tuple([z.string(), z.string(), z.string(), z.string()]))
-});
+}).required();
 
 export const FriendsAndBookmarksEventSchema = z.object({
     characters: z.array(z.string())
-});
+}).required();
 
 export const IdentityEventSchema = z.object({
     character: z.string()
-});
+}).required();
 
 export const TypingStatusEventSchema = z.object({
     character: z.string(),
     status: z.string()
-});
+}).required();
 
 export const SystemMessageEventSchema = z.object({
     message: z.string(),
     channel: z.string()
-});
+}).required();
 
 export const ProfileDataEventSchema = z.object({
     type: z.string(),
     message: z.string(),
     key: z.string(),
     value: z.string()
-});
+}).required();
 
 export const OnlineEventSchema = z.object({
     character: z.string()
-});
+}).required();
 
 export const PingEventSchema = z.undefined();
 
 export const PrivateMessageEventSchema = z.object({
     character: z.string(),
     message: z.string()
-});
+}).required();
 
 export const DescriptionChangeEventSchema = z.object({
     channel: z.string(),
     description: z.string()
-});
+}).required();
 
 export const RollEventRollSchema = z.object({
     channel: z.string(),
@@ -124,7 +266,7 @@ export const RollEventRollSchema = z.object({
     rolls: z.array(z.string()),
     character: z.string(),
     endresult: z.number()
-});
+}).required();
 
 export const RollEventBottleSchema = z.object({
     target: z.string(),
@@ -132,7 +274,7 @@ export const RollEventBottleSchema = z.object({
     message: z.string(),
     type: z.literal('bottle'),
     character: z.string()
-});
+}).required();
 
 export const RollEventSchema = z.discriminatedUnion('type', [
     RollEventRollSchema,
@@ -143,351 +285,322 @@ export const StatusEventSchema = z.object({
     status: z.string(),
     character: z.string(),
     statusmsg: z.string()
-});
+}).required();
 
 export const BanEventSchema = z.object({
     operator: z.string(),
     channel: z.string(),
     character: z.string()
-});
-
-// Type inference from schemas
-export type ConnectionEvent = z.infer<typeof ConnectionEventSchema>;
-export type ChatOPListEvent = z.infer<typeof ChatOPListEventSchema>;
-export type ChatOPAddedEvent = z.infer<typeof ChatOPAddedEventSchema>;
-export type ChatOPRemovedEvent = z.infer<typeof ChatOPRemovedEventSchema>;
-export type OfflineEvent = z.infer<typeof OfflineEventSchema>;
-export type InitialChannelDataEvent = z.infer<typeof InitialChannelDataEventSchema>;
-export type InviteEvent = z.infer<typeof InviteEventSchema>;
-export type JoinEvent = z.infer<typeof JoinEventSchema>;
-export type KickEvent = z.infer<typeof KickEventSchema>;
-export type LeaveEvent = z.infer<typeof LeaveEventSchema>;
-export type MessageEvent = z.infer<typeof MessageEventSchema>;
-export type VariableEvent = z.infer<typeof VariableEventSchema>;
-export type ListEvent = z.infer<typeof ListEventSchema>;
-export type FriendsAndBookmarksEvent = z.infer<typeof FriendsAndBookmarksEventSchema>;
-export type IdentityEvent = z.infer<typeof IdentityEventSchema>;
-export type TypingStatusEvent = z.infer<typeof TypingStatusEventSchema>;
-export type SystemMessageEvent = z.infer<typeof SystemMessageEventSchema>;
-export type ProfileDataEvent = z.infer<typeof ProfileDataEventSchema>;
-export type OnlineEvent = z.infer<typeof OnlineEventSchema>;
-export type PingEvent = z.infer<typeof PingEventSchema>;
-export type PrivateMessageEvent = z.infer<typeof PrivateMessageEventSchema>;
-export type DescriptionChangeEvent = z.infer<typeof DescriptionChangeEventSchema>;
-export type RollEvent = z.infer<typeof RollEventSchema>;
-export type StatusEvent = z.infer<typeof StatusEventSchema>;
-export type BanEvent = z.infer<typeof BanEventSchema>;
-
-export type FChatListener<T> = (event: T) => Promise<void>;
+}).required();
 
 export default class FChatLib {
 
-    addConnectionListener(fn:FChatListener<ConnectionEvent>):void{
+    addConnectionListener(fn: FChatListener<ConnectionEvent>):void{
         this.removeConnectionListener(fn);
         this.connectionListeners.push(fn);
     }
 
-    removeConnectionListener(fn):void{
+    removeConnectionListener(fn: FChatListener<ConnectionEvent>):void{
         let id = this.connectionListeners.indexOf(fn);
         if(id != -1){
             this.connectionListeners.splice(id,1);
         }
     }
 
-    addJoinListener(fn):void{
+    addJoinListener(fn: FChatListener<JoinEvent>):void{
         this.removeJoinListener(fn);
         this.joinListeners.push(fn);
     }
 
-    removeJoinListener(fn):void{
+    removeJoinListener(fn: FChatListener<JoinEvent>):void{
         let id = this.joinListeners.indexOf(fn);
         if(id != -1){
             this.joinListeners.splice(id,1);
         }
     }
 
-    addLeaveListener(fn):void{
+    addLeaveListener(fn: FChatListener<LeaveEvent>):void{
         this.removeLeaveListener(fn);
         this.leaveListeners.push(fn);
     }
 
-    removeLeaveListener(fn):void{
+    removeLeaveListener(fn: FChatListener<LeaveEvent>):void{
         let id = this.leaveListeners.indexOf(fn);
         if(id != -1){
             this.leaveListeners.splice(id,1);
         }
     }
 
-    addOnlineListener(fn):void{
+    addOnlineListener(fn: FChatListener<OnlineEvent>):void{
         this.removeOnlineListener(fn);
         this.onlineListeners.push(fn);
     }
 
-    removeOnlineListener(fn):void{
+    removeOnlineListener(fn: FChatListener<OnlineEvent>):void{
         let id = this.onlineListeners.indexOf(fn);
         if(id != -1){
             this.onlineListeners.splice(id,1);
         }
     }
 
-    addOfflineListener(fn):void{
+    addOfflineListener(fn: FChatListener<OfflineEvent>):void{
         this.removeOfflineListener(fn);
         this.offlineListeners.push(fn);
     }
 
-    removeOfflineListener(fn):void{
+    removeOfflineListener(fn: FChatListener<OfflineEvent>):void{
         let id = this.offlineListeners.indexOf(fn);
         if(id != -1){
             this.offlineListeners.splice(id,1);
         }
     }
 
-    addStatusListener(fn):void{
+    addStatusListener(fn: FChatListener<StatusEvent>):void{
         this.removeStatusListener(fn);
         this.statusListeners.push(fn);
     }
 
-    removeStatusListener(fn):void{
+    removeStatusListener(fn: FChatListener<StatusEvent>):void{
         let id = this.statusListeners.indexOf(fn);
         if(id != -1){
             this.statusListeners.splice(id,1);
         }
     }
 
-    addChatOPListListener(fn):void{
+    addChatOPListListener(fn: FChatListener<ChatOPListEvent>):void{
         this.removeChatOPListListener(fn);
         this.chatOPListListeners.push(fn);
     }
 
-    removeChatOPListListener(fn):void{
+    removeChatOPListListener(fn: FChatListener<ChatOPListEvent>):void{
         let id = this.chatOPListListeners.indexOf(fn);
         if(id != -1){
             this.chatOPListListeners.splice(id,1);
         }
     }
 
-    addChatOPAddedListener(fn):void{
+    addChatOPAddedListener(fn: FChatListener<ChatOPAddedEvent>):void{
         this.removeChatOPAddedListener(fn);
         this.chatOPAddedListeners.push(fn);
     }
 
-    removeChatOPAddedListener(fn):void{
+    removeChatOPAddedListener(fn: FChatListener<ChatOPAddedEvent>):void{
         let id = this.chatOPAddedListeners.indexOf(fn);
         if(id != -1){
             this.chatOPAddedListeners.splice(id,1);
         }
     }
 
-    addChatOPRemovedListener(fn):void{
+    addChatOPRemovedListener(fn: FChatListener<ChatOPRemovedEvent>):void{
         this.removeChatOPRemovedListener(fn);
         this.chatOPRemovedListeners.push(fn);
     }
 
-    removeChatOPRemovedListener(fn):void{
+    removeChatOPRemovedListener(fn: FChatListener<ChatOPRemovedEvent>):void{
         let id = this.chatOPRemovedListeners.indexOf(fn);
         if(id != -1){
             this.chatOPRemovedListeners.splice(id,1);
         }
     }
 
-    addInviteListener(fn):void{
+    addInviteListener(fn: FChatListener<InviteEvent>):void{
         this.removeInviteListener(fn);
         this.inviteListeners.push(fn);
     }
 
-    removeInviteListener(fn):void{
+    removeInviteListener(fn: FChatListener<InviteEvent>):void{
         let id = this.inviteListeners.indexOf(fn);
         if(id != -1){
             this.inviteListeners.splice(id,1);
         }
     }
 
-    addKickListener(fn):void{
+    addKickListener(fn: FChatListener<KickEvent>):void{
         this.removeKickListener(fn);
         this.kickListeners.push(fn);
     }
 
-    removeKickListener(fn):void{
+    removeKickListener(fn: FChatListener<KickEvent>):void{
         let id = this.kickListeners.indexOf(fn);
         if(id != -1){
             this.kickListeners.splice(id,1);
         }
     }
 
-    addBanListener(fn):void{
+    addBanListener(fn: FChatListener<BanEvent>):void{
         this.removeBanListener(fn);
         this.banListeners.push(fn);
     }
 
-    removeBanListener(fn):void{
+    removeBanListener(fn: FChatListener<BanEvent>):void{
         let id = this.banListeners.indexOf(fn);
         if(id != -1){
             this.banListeners.splice(id,1);
         }
     }
 
-    addDescriptionChangeListener(fn):void{
+    addDescriptionChangeListener(fn: FChatListener<DescriptionChangeEvent>):void{
         this.removeDescriptionChangeListener(fn);
         this.descriptionChangeListeners.push(fn);
     }
 
-    removeDescriptionChangeListener(fn):void{
+    removeDescriptionChangeListener(fn: FChatListener<DescriptionChangeEvent>):void{
         let id = this.descriptionChangeListeners.indexOf(fn);
         if(id != -1){
             this.descriptionChangeListeners.splice(id,1);
         }
     }
 
-    addPingListener(fn):void{
+    addPingListener(fn: FChatListener<PingEvent>):void{
         this.removePingListener(fn);
         this.pingListeners.push(fn);
     }
 
-    removePingListener(fn):void{
+    removePingListener(fn: FChatListener<PingEvent>):void{
         let id = this.pingListeners.indexOf(fn);
         if(id != -1){
             this.pingListeners.splice(id,1);
         }
     }
 
-    addInitialChannelDataListener(fn):void{
+    addInitialChannelDataListener(fn: FChatListener<InitialChannelDataEvent>):void{
         this.removeInitialChannelDataListener(fn);
         this.initialChannelDataListeners.push(fn);
     }
 
-    removeInitialChannelDataListener(fn):void{
+    removeInitialChannelDataListener(fn: FChatListener<InitialChannelDataEvent>):void{
         let id = this.initialChannelDataListeners.indexOf(fn);
         if(id != -1){
             this.initialChannelDataListeners.splice(id,1);
         }
     }
 
-    addMessageListener(fn):void{
+    addMessageListener(fn: FChatListener<MessageEvent>):void{
         this.removeMessageListener(fn);
         this.messageListeners.push(fn);
     }
 
-    removeMessageListener(fn):void{
+    removeMessageListener(fn: FChatListener<MessageEvent>):void{
         let id = this.messageListeners.indexOf(fn);
         if(id != -1){
             this.messageListeners.splice(id,1);
         }
     }
 
-    addPrivateMessageListener(fn):void{
+    addPrivateMessageListener(fn: FChatListener<PrivateMessageEvent>):void{
         this.removePrivateMessageListener(fn);
         this.privateMessageListeners.push(fn);
     }
 
-    removePrivateMessageListener(fn):void{
+    removePrivateMessageListener(fn: FChatListener<PrivateMessageEvent>):void{
         let id = this.privateMessageListeners.indexOf(fn);
         if(id != -1){
             this.privateMessageListeners.splice(id,1);
         }
     }
 
-    addRollListener(fn):void{
+    addRollListener(fn: FChatListener<RollEvent>):void{
         this.removeRollListener(fn);
         this.rollListeners.push(fn);
     }
 
-    removeRollListener(fn):void{
+    removeRollListener(fn: FChatListener<RollEvent>):void{
         let id = this.rollListeners.indexOf(fn);
         if(id != -1){
             this.rollListeners.splice(id,1);
         }
     }
 
-    addVariableListener(fn):void{
+    addVariableListener(fn: FChatListener<VariableEvent>):void{
         this.removeVariableListener(fn);
         this.variableListeners.push(fn);
     }
 
-    removeVariableListener(fn):void{
+    removeVariableListener(fn: FChatListener<VariableEvent>):void{
         let id = this.variableListeners.indexOf(fn);
         if(id != -1){
             this.variableListeners.splice(id,1);
         }
     }
 
-    addGenericEventListener(fn):void{
+    addGenericEventListener(fn: FChatListener<unknown>):void{
         this.removeGenericEventListener(fn);
         this.genericEventListeners.push(fn);
     }
 
-    removeGenericEventListener(fn):void{
+    removeGenericEventListener(fn: FChatListener<unknown>):void{
         let id = this.genericEventListeners.indexOf(fn);
         if(id != -1){
             this.genericEventListeners.splice(id,1);
         }
     }
 
-    addListListener(fn):void{
+    addListListener(fn: FChatListener<ListEvent>):void{
         this.removeListListener(fn);
         this.listListeners.push(fn);
     }
 
-    removeListListener(fn):void{
+    removeListListener(fn: FChatListener<ListEvent>):void{
         let id = this.listListeners.indexOf(fn);
         if(id != -1){
             this.listListeners.splice(id,1);
         }
     }
 
-    addFriendsAndBookmarksListener(fn):void{
+    addFriendsAndBookmarksListener(fn: FChatListener<FriendsAndBookmarksEvent>):void{
         this.removeGenericEventListener(fn);
         this.friendsAndBookmarksListeners.push(fn);
     }
 
-    removeFriendsAndBookmarksListener(fn):void{
+    removeFriendsAndBookmarksListener(fn: FChatListener<FriendsAndBookmarksEvent>):void{
         let id = this.friendsAndBookmarksListeners.indexOf(fn);
         if(id != -1){
             this.friendsAndBookmarksListeners.splice(id,1);
         }
     }
 
-    addIdentityListener(fn):void{
+    addIdentityListener(fn: FChatListener<IdentityEvent>):void{
         this.removeIdentityListener(fn);
         this.identityListeners.push(fn);
     }
 
-    removeIdentityListener(fn):void{
+    removeIdentityListener(fn: FChatListener<IdentityEvent>):void{
         let id = this.identityListeners.indexOf(fn);
         if(id != -1){
             this.identityListeners.splice(id,1);
         }
     }
 
-    addSystemMessagesListener(fn):void{
+    addSystemMessagesListener(fn: FChatListener<SystemMessageEvent>):void{
         this.removeSystemMessagesListener(fn);
         this.systemMessageListeners.push(fn);
     }
 
-    removeSystemMessagesListener(fn):void{
+    removeSystemMessagesListener(fn: FChatListener<SystemMessageEvent>):void{
         let id = this.systemMessageListeners.indexOf(fn);
         if(id != -1){
             this.systemMessageListeners.splice(id,1);
         }
     }
 
-    addTypingStatusListener(fn):void{
+    addTypingStatusListener(fn: FChatListener<TypingStatusEvent>):void{
         this.removeTypingStatusListener(fn);
         this.typingStatusListeners.push(fn);
     }
 
-    removeTypingStatusListener(fn):void{
+    removeTypingStatusListener(fn: FChatListener<TypingStatusEvent>):void{
         let id = this.typingStatusListeners.indexOf(fn);
         if(id != -1){
             this.typingStatusListeners.splice(id,1);
         }
     }
 
-    addProfileDataListener(fn):void{
+    addProfileDataListener(fn: FChatListener<ProfileDataEvent>):void{
         this.removeProfileDataListener(fn);
         this.profileDataListeners.push(fn);
     }
 
-    removeProfileDataListener(fn):void{
+    removeProfileDataListener(fn: FChatListener<ProfileDataEvent>):void{
         let id = this.profileDataListeners.indexOf(fn);
         if(id != -1){
             this.profileDataListeners.splice(id,1);
