@@ -14,7 +14,8 @@
   },
   "scripts": {
     "build": "rimraf dist && tsc",
-    "start": "rimraf dist && tsc && node dist/test/myTypescriptApp.js"
+    "start": "rimraf dist && tsc && node dist/test/myTypescriptApp.js",
+    "postinstall": "npm run build"
   },
   "dependencies": {
     "@types/jasmine": "^2.6.0",
