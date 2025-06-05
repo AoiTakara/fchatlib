@@ -261,7 +261,7 @@ export const DescriptionChangeEventSchema = z.object({
 export const RollEventRollSchema = z.object({
     channel: z.string(),
     results: z.array(z.number()),
-    type: z.string(),
+    type: z.literal('roll'),
     message: z.string(),
     rolls: z.array(z.string()),
     character: z.string(),
