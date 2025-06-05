@@ -1,5 +1,5 @@
 {
-  "name": "fchatlib",
+  "name": "@aoitakara/fchatlib",
   "version": "1.3.0",
   "description": "FChatLib",
   "main": "dist/FChatLib.js",

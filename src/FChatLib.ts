@@ -1317,3 +1317,9 @@ export default class FChatLib {
 
 }
 
+export * from './Interfaces/IConfig';
+export * from './Interfaces/IPlugin';
+export * from './Interfaces/IChannel';
+export * from './Interfaces/IMsgEvent';
+export * from './CommandHandler';
+export * from './CommandHandlerHelper'
