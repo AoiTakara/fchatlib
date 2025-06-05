@@ -43,7 +43,7 @@ reload it with !reloadplugins
 
 Awaits the option parameter, with the following arguments:
 ```
-var options = {username = "", password = "", character = "", master = "", cname = "", cversion = ""}
+var options = {username = "", password = "", character = "", master = "", cname = "", cversion = "", saveFolder = "", saveFileName = "" }
 var FChatLib = require('fchatlib');
 var myFchatBot = new FChatLib(options);
 myFchatBot.connect();
@@ -55,8 +55,10 @@ character will determine which character on your account will be used for the bo
 master determines which character will have the privileges for rebooting, reloading and etc,
 
 The optional parameters are:
-cname is your bot's common name (surely used internally by F-list's),
-cversion is the bot's current version (surely used internally by F-list's)
+- cname is your bot's common name (surely used internally by F-list's),
+- cversion is the bot's current version (surely used internally by F-list's)
+- saveFolder is a folder path the bot will use to save its internal data, such as loaded plugins per channel
+- saveFileName is the name of the file the bot will save its internal data to
 
 ### `connect`
 

@@ -1,15 +1,12 @@
 ﻿'use strict';
 import CommandHandler from "./CommandHandler";
 import {IPlugin} from "./Interfaces/IPlugin";
-import {IFChatLib} from "./Interfaces/IFChatLib";
 import {IConfig} from "./Interfaces/IConfig";
 import {IMsgEvent} from "./Interfaces/IMsgEvent";
 import { io, Socket } from 'socket.io-client';
 import request from "request";
 import { writeFileSync, statSync, mkdirSync, existsSync, readFileSync } from 'node:fs';
 import { z } from 'zod';
-let configDir = process.cwd()+"/config";
-let fileRoomsJs = "/config.rooms.js";
 
 // Zod schemas for event types
 export const ConnectionEventSchema = z.object({
@@ -183,7 +180,7 @@ export type BanEvent = z.infer<typeof BanEventSchema>;
 
 export type FChatListener<T> = (event: T) => Promise<void>;
 
-export default class FChatLib implements IFChatLib{
+export default class FChatLib {
 
     addConnectionListener(fn:FChatListener<ConnectionEvent>):void{
         this.removeConnectionListener(fn);
@@ -497,50 +494,52 @@ export default class FChatLib implements IFChatLib{
         }
     }
 
-    config:IConfig = null;
+    readonly config:IConfig = null;
 
-    banListeners: FChatListener<BanEvent>[] = [];
-    chatOPAddedListeners: FChatListener<ChatOPAddedEvent>[] = [];
-    chatOPListListeners: FChatListener<ChatOPListEvent>[] = [];
-    chatOPRemovedListeners: FChatListener<ChatOPRemovedEvent>[] = [];
-    connectionListeners: FChatListener<ConnectionEvent>[] = [];
-    descriptionChangeListeners: FChatListener<DescriptionChangeEvent>[] = [];
-    initialChannelDataListeners: FChatListener<InitialChannelDataEvent>[] = [];
-    inviteListeners: FChatListener<InviteEvent>[] = [];
-    joinListeners: FChatListener<JoinEvent>[] = [];
-    kickListeners: FChatListener<KickEvent>[] = [];
-    leaveListeners: FChatListener<LeaveEvent>[] = [];
-    messageListeners: FChatListener<MessageEvent>[] = [];
-    offlineListeners: FChatListener<OfflineEvent>[] = [];
-    onlineListeners: FChatListener<OnlineEvent>[] = [];
-    pingListeners: FChatListener<PingEvent>[] = [];
-    privateMessageListeners: FChatListener<PrivateMessageEvent>[] = [];
-    rollListeners: FChatListener<RollEvent>[] = [];
-    statusListeners: FChatListener<StatusEvent>[] = [];
-    variableListeners: FChatListener<VariableEvent>[] = [];
-    genericEventListeners: FChatListener<unknown>[] = [];
-    listListeners: FChatListener<ListEvent>[] = [];
-    friendsAndBookmarksListeners: FChatListener<FriendsAndBookmarksEvent>[] = [];
-    identityListeners: FChatListener<IdentityEvent>[] = [];
-    typingStatusListeners: FChatListener<TypingStatusEvent>[] = [];
-    systemMessageListeners: FChatListener<SystemMessageEvent>[] = [];
-    profileDataListeners: FChatListener<ProfileDataEvent>[] = [];
+    private banListeners: FChatListener<BanEvent>[] = [];
+    private chatOPAddedListeners: FChatListener<ChatOPAddedEvent>[] = [];
+    private chatOPListListeners: FChatListener<ChatOPListEvent>[] = [];
+    private chatOPRemovedListeners: FChatListener<ChatOPRemovedEvent>[] = [];
+    private connectionListeners: FChatListener<ConnectionEvent>[] = [];
+    private descriptionChangeListeners: FChatListener<DescriptionChangeEvent>[] = [];
+    private initialChannelDataListeners: FChatListener<InitialChannelDataEvent>[] = [];
+    private inviteListeners: FChatListener<InviteEvent>[] = [];
+    private joinListeners: FChatListener<JoinEvent>[] = [];
+    private kickListeners: FChatListener<KickEvent>[] = [];
+    private leaveListeners: FChatListener<LeaveEvent>[] = [];
+    private messageListeners: FChatListener<MessageEvent>[] = [];
+    private offlineListeners: FChatListener<OfflineEvent>[] = [];
+    private onlineListeners: FChatListener<OnlineEvent>[] = [];
+    private pingListeners: FChatListener<PingEvent>[] = [];
+    private privateMessageListeners: FChatListener<PrivateMessageEvent>[] = [];
+    private rollListeners: FChatListener<RollEvent>[] = [];
+    private statusListeners: FChatListener<StatusEvent>[] = [];
+    private variableListeners: FChatListener<VariableEvent>[] = [];
+    private genericEventListeners: FChatListener<unknown>[] = [];
+    private listListeners: FChatListener<ListEvent>[] = [];
+    private friendsAndBookmarksListeners: FChatListener<FriendsAndBookmarksEvent>[] = [];
+    private identityListeners: FChatListener<IdentityEvent>[] = [];
+    private typingStatusListeners: FChatListener<TypingStatusEvent>[] = [];
+    private systemMessageListeners: FChatListener<SystemMessageEvent>[] = [];
+    private profileDataListeners: FChatListener<ProfileDataEvent>[] = [];
 
-    usersInChannel:string[][] = [];
-    chatOPsInChannel:string[][] = [];
-    commandHandlers: CommandHandler[] = [];
-    users:string[][] = [];
+    private usersInChannel:string[][] = [];
+    private chatOPsInChannel:string[][] = [];
+    private commandHandlers: CommandHandler[] = [];
+    private users:string[][] = [];
 
     channels:Map<string, Array<IPlugin>> = new Map<string, Array<IPlugin>>();
-    channelNames:Map<string, string> = new Map<string, string>();
+    private channelNames:Map<string, string> = new Map<string, string>();
 
-    ws: Socket;
+    private ws: Socket;
 
-    pingInterval:NodeJS.Timeout;
+    private pingInterval:NodeJS.Timeout;
 
     floodLimit:number = 2.0;
-    lastTimeCommandReceived:number = Number.MAX_VALUE;
-    commandsInQueue:number = 0;
+    private lastTimeCommandReceived:number = Number.MAX_VALUE;
+    private commandsInQueue:number = 0;
+    private saveFolder:string
+    private saveFileName:string
 
     timeout(ms) {
         return new Promise(resolve => setTimeout(resolve, ms));
@@ -563,6 +562,7 @@ export default class FChatLib implements IFChatLib{
 
     constructor(configuration:IConfig){
 
+
         if(configuration == null){
             console.log('No configuration passed, cannot start.');
             process.exit();
@@ -575,9 +575,12 @@ export default class FChatLib implements IFChatLib{
             }
         }
 
+        this.saveFolder = this.config.saveFolder || process.cwd()+"/config";
+        this.saveFileName = this.config.saveFileName || 'config.rooms.js';
+
         try {
-            if (statSync(configDir+fileRoomsJs)) {
-                this.channels = new Map(JSON.parse(readFileSync(configDir+fileRoomsJs, 'utf8')));
+            if (statSync(this.saveFolder+this.saveFileName)) {
+                this.channels = new Map(JSON.parse(readFileSync(this.saveFolder+this.saveFileName, 'utf8')));
             }
         }
         catch(err){}
@@ -640,7 +643,7 @@ export default class FChatLib implements IFChatLib{
         this.joinNewChannel(args.name);
     }
 
-    async joinChannelOnConnect(args: ConnectionEvent) {
+    private async joinChannelOnConnect(args: ConnectionEvent) {
         for(let room of this.channels.keys()) {
             this.sendWS('JCH', { channel: room });
         }
@@ -661,7 +664,7 @@ export default class FChatLib implements IFChatLib{
         this.updateRoomsConfig();
     }
 
-    commandListener(args:IMsgEvent) {
+    private commandListener(args:IMsgEvent) {
         if(typeof this.commandHandlers[args.channel] !== "undefined")
         {
             try {
@@ -680,7 +683,7 @@ export default class FChatLib implements IFChatLib{
     }
 
     //user management
-    addUsersToList(args) {
+    private addUsersToList(args) {
         if(typeof this.usersInChannel[args.channel] !== "object"){this.usersInChannel[args.channel] = [];}
         for(let i in args.users){
             if(this.usersInChannel[args.channel].indexOf(args.users[i].identity) == -1){
@@ -689,21 +692,21 @@ export default class FChatLib implements IFChatLib{
         }
     }
 
-    addUserToList(args) {
+    private addUserToList(args) {
         if(typeof this.usersInChannel[args.channel] !== "object"){this.usersInChannel[args.channel] = [];}
         if(this.usersInChannel[args.channel].indexOf(args.character.identity) == -1){
             this.usersInChannel[args.channel].push(args.character.identity);
         }
     }
 
-    removeUserFromList(args) {
+    private removeUserFromList(args) {
         if(typeof this.usersInChannel[args.channel] !== "object"){ return; }
         if(this.usersInChannel[args.channel].indexOf(args.character) != -1){
             this.usersInChannel[args.channel].splice(this.usersInChannel[args.channel].indexOf(args.character),1);
         }
     }
 
-    removeUserFromChannels(args) { //remove if offline
+    private removeUserFromChannels(args) { //remove if offline
         for(let i in this.usersInChannel){
             if(typeof this.usersInChannel[i] !== "object"){ continue; }
             if(this.usersInChannel[i].indexOf(args.character) != -1){
@@ -712,17 +715,17 @@ export default class FChatLib implements IFChatLib{
         }
     }
 
-    saveChannelNames(args) {
+    private saveChannelNames(args) {
         this.channelNames[args.channel] = args.title;
     }
 
-    addUserListToGlobalState(args) {
+    private addUserListToGlobalState(args) {
         args.characters.forEach(character => {
             this.users[character[0]] = character;
         });
     }
 
-    onChangeUpdateUserState(args) {
+    private onChangeUpdateUserState(args) {
         let character = "";
         let gender = "";
         let status = "";
@@ -767,7 +770,7 @@ export default class FChatLib implements IFChatLib{
     }
 
     //permissions
-    addChatOPsToList(args) {
+    private addChatOPsToList(args) {
         if(typeof this.chatOPsInChannel[args.channel] !== "object"){this.chatOPsInChannel[args.channel] = [];}
         for(let i in args.oplist){
             if(this.chatOPsInChannel[args.channel].indexOf(args.oplist[i]) == -1){
@@ -776,21 +779,21 @@ export default class FChatLib implements IFChatLib{
         }
     }
 
-    addChatOPToList(args) {
+    private addChatOPToList(args) {
         if(typeof this.chatOPsInChannel[args.channel] !== "object"){this.chatOPsInChannel[args.channel] = [];}
         if(this.chatOPsInChannel[args.channel].indexOf(args.character) == -1){
             this.chatOPsInChannel[args.channel].push(args.character);
         }
     }
 
-    removeChatOPFromList(args) {
+    private removeChatOPFromList(args) {
         if(typeof this.chatOPsInChannel[args.channel] !== "object"){ return; }
         if(this.chatOPsInChannel[args.channel].indexOf(args.character) != -1){
             this.chatOPsInChannel[args.channel].splice(this.chatOPsInChannel[args.channel].indexOf(args.character),1);
         }
     }
 
-    variableChangeHandler(args) {
+    private variableChangeHandler(args) {
         switch(args.variable){
             case "msg_flood":
                     this.floodLimit = args.value;
@@ -800,7 +803,7 @@ export default class FChatLib implements IFChatLib{
         }
     }
 
-    async getTicket(){
+    private async getTicket(){
         return new Promise<object>((resolve, reject) => {
             request.post({ url: 'https://www.f-list.net/json/getApiTicket.php', form: { account: this.config.username, password: this.config.password } }, (err, httpResponse, body) => {
                 if(err){
@@ -905,8 +908,8 @@ export default class FChatLib implements IFChatLib{
     }
 
     updateRoomsConfig():void{
-        if (!existsSync(configDir)){
-            mkdirSync(configDir);
+        if (!existsSync(this.saveFolder)){
+            mkdirSync(this.saveFolder);
         }
 
         let ignoredKeys = ["instanciatedPlugin"];
@@ -923,11 +926,11 @@ export default class FChatLib implements IFChatLib{
             return value;
         });
 
-        writeFileSync(configDir+fileRoomsJs, tempJson);
+        writeFileSync(this.saveFolder+this.saveFileName, tempJson);
     }
 
 
-    startWebsockets(json):void {
+    private startWebsockets(json):void {
         const socketUrl = 'wss://chat.f-list.net/chat2';
         
         this.ws = io(socketUrl, {
@@ -1190,7 +1193,7 @@ export default class FChatLib implements IFChatLib{
         });
     }
 
-    splitOnce(str, delim) {
+    private splitOnce(str, delim) {
         let components = str.split(delim);
         let result = [components.shift()];
         if (components.length) {

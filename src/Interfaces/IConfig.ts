@@ -8,4 +8,12 @@ export interface IConfig{
     room:string;
     autoJoinOnInvite:boolean;
     debug:boolean;
+    /** The absolute file path to the folder where the bot will save its runtime data.
+     * @default process.cwd()+"/config"
+     */
+    saveFolder?:string;
+    /** The name of the file where the bot will save its runtime data.
+     * @default "config.rooms.js"
+     */
+    saveFileName?:string;
 }
