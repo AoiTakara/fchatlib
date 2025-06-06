@@ -1,7 +1,6 @@
 import FChatLib from "../src/FChatLib";
-import Config from "./config/Config";
+import {config} from "./config/Config";
 
-let options = require(__dirname+'/config/config.js');
-let myFchatBot = new FChatLib(new Config());
+let myFchatBot = new FChatLib(config);
 myFchatBot.connect();
 console.log("ok");

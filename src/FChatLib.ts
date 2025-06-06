@@ -3,7 +3,7 @@ import CommandHandler from "./CommandHandler";
 import {IPlugin} from "./Interfaces/IPlugin";
 import {IConfig} from "./Interfaces/IConfig";
 import {IMsgEvent} from "./Interfaces/IMsgEvent";
-import { io, Socket } from 'socket.io-client';
+import ws, { WebSocket } from 'ws';
 import request from "request";
 import { writeFileSync, statSync, mkdirSync, existsSync, readFileSync } from 'node:fs';
 import { z } from 'zod';
@@ -151,15 +151,18 @@ export interface BanEvent {
 export type FChatListener<T> = (event: T) => Promise<void> | void;
 
 // Zod schemas for event types
+/** CON */
 export const ConnectionEventSchema = z.object({
     count: z.number()
 }).required();
 
+/** COL */
 export const ChatOPListEventSchema = z.object({
     oplist: z.array(z.string()),
     channel: z.string()
 }).required();
 
+/** COA */
 export const ChatOPAddedEventSchema = z.object({
     channel: z.string(),
     character: z.string()
@@ -242,11 +245,12 @@ export const ProfileDataEventSchema = z.object({
     value: z.string()
 }).required();
 
+/** NLN */
 export const OnlineEventSchema = z.object({
-    character: z.string()
+    identity: z.string(),
+    gender: z.string(),
+    status: z.string()
 }).required();
-
-export const PingEventSchema = z.undefined();
 
 export const PrivateMessageEventSchema = z.object({
     character: z.string(),
@@ -644,7 +648,7 @@ export default class FChatLib {
     channels:Map<string, Array<IPlugin>> = new Map<string, Array<IPlugin>>();
     private channelNames:Map<string, string> = new Map<string, string>();
 
-    private ws: Socket;
+    private ws: WebSocket;
 
     private pingInterval:NodeJS.Timeout;
 
@@ -688,7 +692,7 @@ export default class FChatLib {
             }
         }
 
-        this.saveFolder = this.config.saveFolder || process.cwd()+"/config";
+        this.saveFolder = this.config.saveFolder || process.cwd()+"/config/";
         this.saveFileName = this.config.saveFileName || 'config.rooms.js';
 
         try {
@@ -696,7 +700,9 @@ export default class FChatLib {
                 this.channels = new Map(JSON.parse(readFileSync(this.saveFolder+this.saveFileName, 'utf8')));
             }
         }
-        catch(err){}
+        catch(err){
+            //Swallow the error
+        }
 
         if(this.config.room !== undefined && this.channels.get(this.config.room) == null){
             this.channels.set(this.config.room, []);
@@ -748,8 +754,18 @@ export default class FChatLib {
         this.addChatOPAddedListener(this.addChatOPToList);
         this.addChatOPRemovedListener(this.removeChatOPFromList);
 
-        let ticket = await this.getTicket();
+        const ticket = await this.getTicket();
         await this.startWebsockets(ticket);
+        // for(let room of this.channels.keys()) {
+        //     this.sendWS('JCH', { channel: room });
+        // }
+        // this.debugLog('Channels joined');
+    }
+
+    private debugLog(...args:any[]):void{
+        if (this.config.debug) {
+            console.log(...args);
+        }
     }
 
     joinChannelsWhereInvited(args){
@@ -917,6 +933,7 @@ export default class FChatLib {
     }
 
     private async getTicket(){
+        this.debugLog('Getting a ticket from fchat...');
         return new Promise<object>((resolve, reject) => {
             request.post({ url: 'https://www.f-list.net/json/getApiTicket.php', form: { account: this.config.username, password: this.config.password } }, (err, httpResponse, body) => {
                 if(err){
@@ -930,10 +947,17 @@ export default class FChatLib {
         });
     }
 
-    sendWS(command, object) {
-        if (this.ws && this.ws.connected) {
-            this.ws.emit('message', command + ' ' + JSON.stringify(object));
+    /** Returns true if the message was sent, false if the websocket is not ready */
+    sendWS(command, object?): boolean {
+        const message = command + ' ' + (object !== undefined ? JSON.stringify(object) : '');
+        if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+            this.debugLog("Websocket not connected, skipping message |", message);
+            return false;
         }
+
+        this.debugLog("fchat>> ", message);
+        this.ws.send(message);
+        return true;
     }
 
     sendMessage(message, channel){
@@ -1000,7 +1024,7 @@ export default class FChatLib {
 
     disconnect():void {
         if (this.ws) {
-            this.ws.disconnect();
+            this.ws.close();
         }
     }
 
@@ -1043,50 +1067,57 @@ export default class FChatLib {
     }
 
 
-    private startWebsockets(json):void {
+    private startWebsockets(idnObject):void {
         const socketUrl = 'wss://chat.f-list.net/chat2';
         
-        this.ws = io(socketUrl, {
-            transports: ['websocket'],
-            reconnection: true,
-            reconnectionAttempts: 5,
-            reconnectionDelay: 1000
-        });
+        this.ws = new ws(socketUrl);
+        // this.ws = io(socketUrl, {
+        //     transports: ['websocket'],
+        //     reconnection: true,
+        //     reconnectionAttempts: 5,
+        //     reconnectionDelay: 1000,
+        //     path: '/chat2',
+        //     addTrailingSlash: false,
+        // });
 
-        this.ws.on('connect', () => {
-            console.log("Started Socket.IO connection");
-            this.sendWS('IDN', json);
+        this.ws.on('open', (data) => {
+            this.debugLog("Websocket opened, sending IDN with ticket", idnObject);
+            if (!this.sendWS('IDN', idnObject)) {
+                this.debugLog("Websocket not ready, retrying in 1 second");
+                setTimeout(() => { this.startWebsockets(idnObject); }, 1000);
+                return;
+            }
             clearInterval(this.pingInterval);
-            this.pingInterval = setInterval(() => { this.ws.emit('message', 'PIN'); }, 25000);
+            this.pingInterval = setInterval(() => { this.sendWS('PIN'); }, 25000);
         });
 
-        this.ws.on('disconnect', () => {
-            console.log("Closed Socket.IO connection");
+        this.ws.on('close', () => {
+            this.debugLog("Websocket closed");
             process.exit();
         });
 
-        this.ws.on('connect_error', (error) => {
-            console.error("Socket.IO connection error:", error);
+        this.ws.on('error', (error) => {
+            this.debugLog("Websocket error:", error);
             setTimeout(() => { this.connect(); }, 4000);
         });
 
-        this.ws.on('message', async (data) => {
+        this.ws.on('message', async (data: Buffer) => {
             let command:string;
             let argument:any;
-            if(this.config.debug){
-                console.log(data);
-            }
             if (data != null) {
+                const dataString = data.toString('utf-8');
+                this.debugLog("fchat<< ", dataString);
                 try {
                     command = argument = "";
-                    command = this.splitOnce(data, " ")[0].trim();
-                    if(data.toString().substring(command.length).trim() != ""){
-                        argument = JSON.parse(data.toString().substring(command.length).trim());
+                    command = this.splitOnce(dataString, " ")[0].trim();
+                    if(dataString.substring(command.length).trim() != ""){
+                        argument = JSON.parse(dataString.substring(command.length).trim());
                     }
 
                     // Handle all listeners in parallel for better performance
                     const listenerPromises: Promise<void>[] = [];
 
+                    // https://wiki.f-list.net/F-Chat_Server_Commands
                     switch (command) {
                         case "CON":
                             const conEvent = ConnectionEventSchema.safeParse(argument);
@@ -1161,12 +1192,7 @@ export default class FChatLib {
                             }
                             break;
                         case "PIN":
-                            const pinEvent = PingEventSchema.safeParse(argument);
-                            if (pinEvent.success) {
-                                listenerPromises.push(...this.pingListeners.map(listener => listener.call(this, pinEvent.data)));
-                            } else {
-                                console.error("Error parsing PingEvent:", pinEvent.error);
-                            }
+                            listenerPromises.push(...this.pingListeners.map(listener => listener.call(this)));
                             break;
                         case "RLL":
                             const rllEvent = RollEventSchema.safeParse(argument);
@@ -1304,6 +1330,19 @@ export default class FChatLib {
                 }
             }
         });
+    }
+
+    private notifyError(error: Error | string) {
+        const message = error instanceof Error ? error.message : error;
+        if (this.config.master) {
+            this.sendPrivMessage(`Error: ${message}`, this.config.master);
+        }
+    }
+
+    private notifyMaster(message: string) {
+        if (this.config.master) {
+            this.sendPrivMessage(message, this.config.master);
+        }
     }
 
     private splitOnce(str, delim) {
