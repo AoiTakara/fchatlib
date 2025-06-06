@@ -706,5 +706,3 @@ export const getSchemaForCommand = (command: FChatServerCommandType) => {
 export function getCommandObjectForCommand<T extends FChatServerCommandType>(command: T): typeof commandTypeToCommandObjectMap[T] {
   return commandTypeToCommandObjectMap[command];
 }
-
-const testCommand = getCommandObjectForCommand(FChatServerCommandType.ADMIN_LIST);
