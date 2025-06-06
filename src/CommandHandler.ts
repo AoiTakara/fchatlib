@@ -1,6 +1,7 @@
 import FChatLib from "./FChatLib";
 import {CommandHandlerHelper} from "./CommandHandlerHelper";
 import {IPlugin} from "./Interfaces/IPlugin";
+import { fchatServerCommandTypes } from "./FchatServerCommands";
 
 export default class CommandHandler{
 
@@ -45,6 +46,7 @@ export default class CommandHandler{
                 }
 
                 if(!found && typeof this[opts.command] === "function"){
+                    this.fChatLibInstance.infoLog("Plugin Command Received:", opts.command, opts.argument, data);
                     this[opts.command](opts.argument, data);
                 }
 
@@ -119,7 +121,7 @@ export default class CommandHandler{
 
     gdisableinvites(args, data) {
         if(data.character == this.fChatLibInstance.config.master){
-            this.fChatLibInstance.removeInviteListener(this.fChatLibInstance.joinChannelsWhereInvited);
+            this.fChatLibInstance.removeCommandListener(fchatServerCommandTypes.CHANNEL_INVITE_RECEIVED, this.fChatLibInstance.joinChannelsWhereInvited)
         }
         else{
             this.fChatLibInstance.sendMessage('You don\'t have sufficient rights.', data.channel);
@@ -128,8 +130,8 @@ export default class CommandHandler{
 
     genableinvites(args, data) {
         if(data.character == this.fChatLibInstance.config.master){
-            this.fChatLibInstance.removeInviteListener(this.fChatLibInstance.joinChannelsWhereInvited);
-            this.fChatLibInstance.addInviteListener(this.fChatLibInstance.joinChannelsWhereInvited);
+            this.fChatLibInstance.removeCommandListener(fchatServerCommandTypes.CHANNEL_INVITE_RECEIVED, this.fChatLibInstance.joinChannelsWhereInvited)
+            this.fChatLibInstance.addCommandListener(fchatServerCommandTypes.CHANNEL_INVITE_RECEIVED, this.fChatLibInstance.joinChannelsWhereInvited)
         }
         else{
             this.fChatLibInstance.sendMessage('You don\'t have sufficient rights.', data.channel);
