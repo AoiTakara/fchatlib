@@ -1,3 +1,4 @@
+export type LogLevel = "debug" | "info" | "error" | "none";
 export interface IConfig{
     username:string;
     password:string;
@@ -7,7 +8,6 @@ export interface IConfig{
     cversion:string;
     room:string;
     autoJoinOnInvite:boolean;
-    debug:boolean;
     /** The absolute file path to the folder where the bot will save its runtime data.
      * @default process.cwd()+"/config"
      */
@@ -16,4 +16,5 @@ export interface IConfig{
      * @default "config.rooms.js"
      */
     saveFileName?:string;
+    logLevel?:LogLevel;
 }

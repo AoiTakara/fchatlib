@@ -1,9 +1,12 @@
 import { z } from 'zod';
 
+const channelSchema = z.string().describe("The name of the channel.").transform(val => val.toLowerCase());
+
 export const RoomModeSchema = z.enum(["chat", "both", "ads"]).describe(`The mode of the channel.
   chat: Show only MSG.
   both: Show MSG and LRP.
   ads: Show LRP.`);
+export type RoomMode = z.infer<typeof RoomModeSchema>;
 
 export const StatusSchema = z.enum(["online", "looking", "busy", "dnd", "idle", "away", "crown"]).describe(`The status of the character.
   online: The character is online.
@@ -14,97 +17,101 @@ export const StatusSchema = z.enum(["online", "looking", "busy", "dnd", "idle", 
   away: The character is away.
   crown: This is a special status that should not be set by the client. It is set by the RDS command.`);
 
-export enum FChatServerCommandType {
+export type CharacterStatus = z.infer<typeof StatusSchema>;
+
+/** The entire list of valid F-Chat server commands.
+ * See https://wiki.f-list.net/F-Chat_Server_Commands for more information. */
+export const fchatServerCommandTypes = {
     /** Sends the client the current list of chatops. */
-    ADMIN_LIST = "ADL",
+    ADMIN_LIST: "ADL",
     /** The given character has been promoted to chatop. */
-    ADMIN_ADDED = "AOP",
+    ADMIN_ADDED: "AOP",
     /** Incoming admin broadcast. */
-    ADMIN_BROADCAST = "BRO",
+    ADMIN_BROADCAST: "BRO",
     /** Alerts the client that that the channel's description has changed. This is sent whenever a client sends a JCH to the server. */
-    CHANNEL_DESCRIPTION = "CDS",
+    CHANNEL_DESCRIPTION: "CDS",
     /** Sends the client a list of all public channels. */
-    CHANNEL_LIST = "CHA",
+    CHANNEL_LIST: "CHA",
     /** Invites a user to a channel. */
-    CHANNEL_INVITE_RECEIVED = "CIU",
+    CHANNEL_INVITE_RECEIVED: "CIU",
     /** This command requires channel op or higher. Removes a user from a channel, and prevents them from re-entering. */
-    CHANNEL_BAN = "CBU",
+    CHANNEL_BAN: "CBU",
     /** This command requires channel op or higher. Kicks a user from a channel. */
-    CHANNEL_KICK = "CKU",
+    CHANNEL_KICK: "CKU",
     /** This command requires channel op or higher. Promotes a user to channel operator. */
-    CHANNEL_OPERATOR_ADD = "COA",
+    CHANNEL_OPERATOR_ADD: "COA",
     /** Gives a list of channel ops. Sent in response to JCH. */
-    CHANNEL_OPERATOR_LIST = "COL",
+    CHANNEL_OPERATOR_LIST: "COL",
     /** After connecting and identifying you will receive a CON command, giving the number of connected users to the network. */
-    CONNECTION_AMOUNT = "CON",
+    CONNECTED: "CON",
     /** This command requires channel op or higher. Removes a channel operator. */
-    CHANNEL_OPERATOR_REMOVE = "COR",
+    CHANNEL_OPERATOR_REMOVE: "COR",
     /** Sets the owner of the current channel to the character provided. */
-    CHANNEL_SET_OWNER = "CSO",
+    CHANNEL_SET_OWNER: "CSO",
     /** Temporarily bans a user from the channel for 1-90 minutes. A channel timeout. */
-    CHANNEL_TEMP_BAN = "CTU",
+    CHANNEL_TEMP_BAN: "CTU",
     /** The given character has been stripped of chatop status. */
-    ADMIN_REMOVED = "DOP",
+    ADMIN_REMOVED: "DOP",
     /** Indicates that the given error has occurred. */
-    ERROR = "ERR",
+    ERROR: "ERR",
     /** Sent by as a response to the client's FKS command, containing the results of the search. */
-    FCHAT_KINKSEARCH_RESULT = "FKS",
+    FCHAT_KINKSEARCH_RESULT: "FKS",
     /** Sent by the server to inform the client a given character went offline. */
-    CHARACTER_WENT_OFFLINE = "FLN",
+    CHARACTER_WENT_OFFLINE: "FLN",
     /** Server hello command. Tells which server version is running and who wrote it. */
-    SERVER_HELLO = "HLO",
+    SERVER_HELLO: "HLO",
     /** Initial channel data. Received in response to JCH, along with CDS. */
-    INITIAL_CHANNEL_DATA = "ICH",
+    INITIAL_CHANNEL_DATA: "ICH",
     /** Used to inform the client their identification is successful, and handily sends their character name along with it. */
-    IDENTITY = "IDN",
+    IDENTITY: "IDN",
     /** Indicates the given user has joined the given channel. This may also be the client's character. */
-    CHARACTER_JOINED_CHANNEL = "JCH",
+    CHARACTER_JOINED_CHANNEL: "JCH",
     /** Kinks data in response to a KIN client command. */
-    KINK_DATA = "KID",
+    KINK_DATA: "KID",
     /** An indicator that the given character has left the channel. This may also be the client's character. */
-    CHARACTER_LEFT_CHANNEL = "LCH",
+    CHARACTER_LEFT_CHANNEL: "LCH",
     /** Sends an array of all the online characters and their gender, status, and status message. */
-    CHARACTER_ONLINE_LIST = "LIS",
+    CHARACTER_ONLINE_LIST: "LIS",
     /** A user connected. */
-    CHARACTER_NOW_ONLINE = "NLN",
+    CHARACTER_NOW_ONLINE: "NLN",
     /** Handles the ignore list. */
-    IGNORE_LIST = "IGN",
+    IGNORE_LIST: "IGN",
     /** Initial friends list. FRL is a combination of all of this account's bookmarks and friends. */
-    FRIENDS_LIST = "FRL",
+    FRIENDS_LIST: "FRL",
     /** Gives a list of open private rooms. */
-    OPEN_PRIVATE_ROOMS_LIST = "ORS",
+    OPEN_PRIVATE_ROOMS_LIST: "ORS",
     /** Ping command from the server, requiring a response, to keep the connection alive. */
-    PING = "PIN",
+    PING: "PIN",
     /** Profile data commands sent in response to a PRO client command. */
-    PROFILE_DATA_RESPONSE = "PRD",
+    PROFILE_DATA_RESPONSE: "PRD",
     /** A private message is received from another user. */
-    PRIVATE_MESSAGE_RECEIVED = "PRI",
+    PRIVATE_MESSAGE_RECEIVED: "PRI",
     /** A message is received from a user in a channel. */
-    MESSAGE_RECEIVED = "MSG",
+    MESSAGE_RECEIVED: "MSG",
     /** A roleplay ad is received from a user in a channel. */
-    ROLEPLAY_AD_RECEIVED = "LRP",
+    ROLEPLAY_AD_RECEIVED: "LRP",
     /** Rolls dice or spins the bottle. */
-    ROLL_RESULT = "RLL",
+    ROLL_RESULT: "RLL",
     /** Change room mode to accept chat, ads, or both. */
-    ROOM_MODE_CHANGED = "RMO",
+    ROOM_MODE_CHANGED: "RMO",
     /** Real-time bridge. Indicates the user received a note or message, right at the very moment this is received. */
-    REAL_TIME_BRIDGE = "RTB",
+    REAL_TIME_BRIDGE: "RTB",
     /** Alerts admins and chatops (global moderators) of an issue. */
-    ADMIN_ALERT_CONFIRMATION = "SFC",
+    ADMIN_ALERT_CONFIRMATION: "SFC",
     /** A user changed their status */
-    STATUS_CHANGED_FOR_CHARACTER = "STA",
+    STATUS_CHANGED_FOR_CHARACTER: "STA",
     /** An informative autogenerated message from the server. This is also the way the server responds to some commands, such as RST, CIU, CBL, COL, and CUB. The server will sometimes send this in concert with a response command, such as with SFC, COA, and COR. */
-    SYSTEM_MESSAGE = "SYS",
+    SYSTEM_MESSAGE: "SYS",
     /** A user informs you of his typing status. */
-    TYPING_STATUS_CHANGED = "TPN",
+    TYPING_STATUS_CHANGED: "TPN",
     /** Informs the client of the server's self-tracked online time, and a few other bits of information */
-    SERVER_POSIX_TIME = "UPT",
+    SERVER_POSIX_TIME: "UPT",
     /** Variables the server sends to inform the client about server variables. */
-    SERVER_VARIABLES = "VAR"
-}
+    SERVER_VARIABLES: "VAR"
+} as const;
 
 export const AdminListCommand = {
-  type: FChatServerCommandType.ADMIN_LIST,
+  type: fchatServerCommandTypes.ADMIN_LIST,
   schema: z.object({
     ops: z.array(z.string()).describe("The list of chatops for the channel.")
   }).describe(`The list of chatops for the channel.
@@ -112,23 +119,23 @@ export const AdminListCommand = {
 } as const;
 
 export const AdminAddedCommand = {
-  type: FChatServerCommandType.ADMIN_ADDED,
+  type: fchatServerCommandTypes.ADMIN_ADDED,
   schema: z.object({
     character: z.string().describe("The character that was promoted to chatop.")
   })
 } as const;
 
 export const AdminBroadcastCommand = {
-  type: FChatServerCommandType.ADMIN_BROADCAST,
+  type: fchatServerCommandTypes.ADMIN_BROADCAST,
   schema: z.object({
     message: z.string().describe("The message that was broadcasted by an admin.")
   })
 } as const;
 
 export const ChannelDescriptionCommand = {
-  type: FChatServerCommandType.CHANNEL_DESCRIPTION,
+  type: fchatServerCommandTypes.CHANNEL_DESCRIPTION,
   schema: z.object({
-    channel: z.string().describe("The channel that the description was changed for."),
+    channel: channelSchema.describe("The channel that the description was changed for."),
     description: z.string().describe("The new description of the channel.")
   }).describe(`The channel description was changed.
     Warning: As with all commands that refer to a specific channel, official/public channels use the name, but unofficial/private/open private rooms use the channel ID, which can be gotten from ORS.
@@ -136,10 +143,10 @@ export const ChannelDescriptionCommand = {
 } as const;
 
 export const ChannelListCommand = {
-  type: FChatServerCommandType.CHANNEL_LIST,
+  type: fchatServerCommandTypes.CHANNEL_LIST,
   schema: z.object({
     channels: z.array(z.object({
-      name: z.string().describe("The name of the channel."),
+      name: channelSchema.describe("The name of the channel."),
       mode: RoomModeSchema,
       characters: z.number().describe("The amount of characters in the channel.")
     }))
@@ -149,31 +156,31 @@ export const ChannelListCommand = {
 } as const;
 
 export const ChannelInviteReceivedCommand = {
-  type: FChatServerCommandType.CHANNEL_INVITE_RECEIVED,
+  type: fchatServerCommandTypes.CHANNEL_INVITE_RECEIVED,
   schema: z.object({
     sender: z.string().describe("The character that sent the invite."),
     title: z.string().describe("The display name for the channel that the user was invited to."),
-    name: z.string().describe("For public rooms, the channel name. For private rooms, the room ID."),
+    name: channelSchema.describe("For public rooms, the channel name. For private rooms, the room ID."),
   }).describe(`The user was invited to a channel.
     Warning: In F-Chat 1.0, this renders as: "[user]" + sender + "[/user] has invited you to join [session=" + title + "]" + name + "[/session]."
     Example: CIU {"sender":"Jinni Wicked","title":"Test Room","name":"ADH-c7fc4c15c858dd76d860"}`)
 } as const;
 
 export const ChannelBanCommand = {
-  type: FChatServerCommandType.CHANNEL_BAN,
+  type: fchatServerCommandTypes.CHANNEL_BAN,
   schema: z.object({
     operator: z.string().describe("The character that banned the user."),
-    channel: z.string().describe("The channel that the user was banned from."),
+    channel: channelSchema.describe("The channel that the user was banned from."),
     character: z.string().describe("The character that was banned."),
   }).describe(`The user was banned from a channel.
     Example: CBU {"operator":"Teal Deer","channel":"ADH-c7fc4c15c858dd76d860","character":"Pas un Caractere"}`)
 } as const;
 
 export const ChannelKickCommand = {
-  type: FChatServerCommandType.CHANNEL_KICK,
+  type: fchatServerCommandTypes.CHANNEL_KICK,
   schema: z.object({
     operator: z.string().describe("The character that kicked the user."),
-    channel: z.string().describe("The channel that the user was kicked from."),
+    channel: channelSchema.describe("The channel that the user was kicked from."),
     character: z.string().describe("The character that was kicked."),
   }).describe(`The user was kicked from a channel.
     Warning: As with all commands that refer to a specific channel, official/public channels use the name, but unofficial/private/open private rooms use the channel ID, which can be gotten from ORS.
@@ -181,9 +188,9 @@ export const ChannelKickCommand = {
 } as const;
 
 export const ChannelOperatorAddCommand = {
-  type: FChatServerCommandType.CHANNEL_OPERATOR_ADD,
+  type: fchatServerCommandTypes.CHANNEL_OPERATOR_ADD,
   schema: z.object({
-    channel: z.string().describe("The channel that the operator was added to."),
+    channel: channelSchema.describe("The channel that the operator was added to."),
     character: z.string().describe("The character that was made an op."),
   }).describe(`The user was promoted to a channel operator.
     Warning: As with all commands that refer to a specific channel, official/public channels use the name, but unofficial/private/open private rooms use the channel ID, which can be gotten from ORS.
@@ -191,9 +198,9 @@ export const ChannelOperatorAddCommand = {
 } as const;
 
 export const ChannelOperatorListCommand = {
-  type: FChatServerCommandType.CHANNEL_OPERATOR_LIST,
+  type: fchatServerCommandTypes.CHANNEL_OPERATOR_LIST,
   schema: z.object({
-    channel: z.string().describe("The channel that the operator list was requested for."),
+    channel: channelSchema.describe("The channel that the operator list was requested for."),
     oplist: z.array(z.string()).describe("The list of operators for the channel."),
   }).describe(`The list of operators for a channel.
     Warning: As with all commands that refer to a specific channel, official/public channels use the name, but unofficial/private/open private rooms use the channel ID, which can be gotten from ORS. The first name in the list will be the channel owner. Keep in mind that not all official channels have owners, so you may receive "" in the first position.
@@ -201,7 +208,7 @@ export const ChannelOperatorListCommand = {
 } as const;
 
 export const ConnectionAmountCommand = {
-  type: FChatServerCommandType.CONNECTION_AMOUNT,
+  type: fchatServerCommandTypes.CONNECTED,
   schema: z.object({
     count: z.number().describe("The amount of connected users to the network.")
   }).describe(`The amount of connected users to the network.
@@ -209,9 +216,9 @@ export const ConnectionAmountCommand = {
 } as const;
 
 export const ChannelOperatorRemoveCommand = {
-  type: FChatServerCommandType.CHANNEL_OPERATOR_REMOVE,
+  type: fchatServerCommandTypes.CHANNEL_OPERATOR_REMOVE,
   schema: z.object({
-    channel: z.string().describe("The channel that the operator was removed from."),
+    channel: channelSchema.describe("The channel that the operator was removed from."),
     character: z.string().describe("The character that was removed from the channel."),
   }).describe(`The user was removed from a channel as an operator.
     Warning: As with all commands that refer to a specific channel, official/public channels use the name, but unofficial/private/open private rooms use the channel ID, which can be gotten from ORS.
@@ -219,9 +226,9 @@ export const ChannelOperatorRemoveCommand = {
 } as const;
 
 export const ChannelSetOwnerCommand = {
-  type: FChatServerCommandType.CHANNEL_SET_OWNER,
+  type: fchatServerCommandTypes.CHANNEL_SET_OWNER,
   schema: z.object({
-    channel: z.string().describe("The channel that the owner was set for."),
+    channel: channelSchema.describe("The channel that the owner was set for."),
     character: z.string().describe("The character that was set as the owner."),
   }).describe(`The owner of the channel was set to the given character.
     Warning: As with all commands that refer to a specific channel, official/public channels use the name, but unofficial/private/open private rooms use the channel ID, which can be gotten from ORS.
@@ -229,9 +236,9 @@ export const ChannelSetOwnerCommand = {
 } as const;
 
 export const ChannelTempBanCommand = {
-  type: FChatServerCommandType.CHANNEL_TEMP_BAN,
+  type: fchatServerCommandTypes.CHANNEL_TEMP_BAN,
   schema: z.object({
-    channel: z.string().describe("The channel that the user was temporarily banned from."),
+    channel: channelSchema.describe("The channel that the user was temporarily banned from."),
     character: z.string().describe("The character that was temporarily banned."),
     length: z.number().describe("The duration of the ban in minutes. 1-90 minutes."),
   }).describe(`The user was temporarily banned from a channel.
@@ -240,7 +247,7 @@ export const ChannelTempBanCommand = {
 } as const;
 
 export const AdminRemovedCommand = {
-  type: FChatServerCommandType.ADMIN_REMOVED,
+  type: fchatServerCommandTypes.ADMIN_REMOVED,
   schema: z.object({
     character: z.string().describe("The character that was removed from chatops.")
   }).describe(`The user was removed from chatops.
@@ -248,7 +255,7 @@ export const AdminRemovedCommand = {
 } as const;
 
 export const ErrorCommand = {
-  type: FChatServerCommandType.ERROR,
+  type: fchatServerCommandTypes.ERROR,
   schema: z.object({
     message: z.string().describe("The error message."),
     number: z.number().describe("The error number."),
@@ -257,7 +264,7 @@ export const ErrorCommand = {
 } as const;
 
 export const FchatKinkSearchResultCommand = {
-  type: FChatServerCommandType.FCHAT_KINKSEARCH_RESULT,
+  type: fchatServerCommandTypes.FCHAT_KINKSEARCH_RESULT,
   schema: z.object({
     characters: z.array(z.string()).describe("The characters that match the search."),
     kinks: z.array(z.string()).describe("The kinks (by kink id) that match the search."),
@@ -267,7 +274,7 @@ export const FchatKinkSearchResultCommand = {
 } as const;
 
 export const CharacterWentOfflineCommand = {
-  type: FChatServerCommandType.CHARACTER_WENT_OFFLINE,
+  type: fchatServerCommandTypes.CHARACTER_WENT_OFFLINE,
   schema: z.object({
     character: z.string().describe("The character that went offline.")
   }).describe(`The character went offline.
@@ -275,7 +282,7 @@ export const CharacterWentOfflineCommand = {
 } as const;
 
 export const ServerHelloCommand = {
-  type: FChatServerCommandType.SERVER_HELLO,
+  type: fchatServerCommandTypes.SERVER_HELLO,
   schema: z.object({
     message: z.string().describe("The message from the server."),
   }).describe(`The server hello command.
@@ -283,7 +290,7 @@ export const ServerHelloCommand = {
 } as const;
 
 export const IdentityCommand = {
-  type: FChatServerCommandType.IDENTITY,
+  type: fchatServerCommandTypes.IDENTITY,
   schema: z.object({
     character: z.string().describe("The name of the character."),
   }).describe(`The identity command.
@@ -291,9 +298,9 @@ export const IdentityCommand = {
 } as const;
 
 export const InitialChannelDataCommand = {
-  type: FChatServerCommandType.INITIAL_CHANNEL_DATA,
+  type: fchatServerCommandTypes.INITIAL_CHANNEL_DATA,
   schema: z.object({
-    channel: z.string().describe("The channel that the initial channel data was requested for."),
+    channel: channelSchema.describe("The channel that the initial channel data was requested for."),
     users: z.array(z.object({
       identity: z.string().describe("The name of the character."),
     })),
@@ -304,9 +311,9 @@ export const InitialChannelDataCommand = {
 } as const;
 
 export const CharacterJoinedChannelCommand = {
-  type: FChatServerCommandType.CHARACTER_JOINED_CHANNEL,
+  type: fchatServerCommandTypes.CHARACTER_JOINED_CHANNEL,
   schema: z.object({
-    channel: z.string().describe("For public rooms, the channel name. For private rooms, the room ID."),
+    channel: channelSchema.describe("For public rooms, the channel name. For private rooms, the room ID."),
     character: z.object({
       identity: z.string().describe("The name of the character."),
     }),
@@ -317,7 +324,7 @@ export const CharacterJoinedChannelCommand = {
 } as const;
 
 export const KinkDataCommand = {
-  type: FChatServerCommandType.KINK_DATA,
+  type: fchatServerCommandTypes.KINK_DATA,
   schema: z.object({
     type: z.enum(["start", "custom", "end"]).describe("The type of kink data."),
     message: z.string().describe("The message to display to the user."),
@@ -328,23 +335,23 @@ export const KinkDataCommand = {
 } as const;
 
 export const CharacterLeftChannelCommand = {
-  type: FChatServerCommandType.CHARACTER_LEFT_CHANNEL,
+  type: fchatServerCommandTypes.CHARACTER_LEFT_CHANNEL,
   schema: z.object({
-    channel: z.string().describe("The channel that the character left."),
+    channel: channelSchema.describe("The channel that the character left."),
     character: z.string().describe("The character that left the channel."),
   }).describe(`The character left the channel.
     Example: LCH {"character":"Teal Deer", "channel": "Frontpage"}`)
 } as const;
 
 export const CharacterOnlineListCommand = {
-  type: FChatServerCommandType.CHARACTER_ONLINE_LIST,
+  type: fchatServerCommandTypes.CHARACTER_ONLINE_LIST,
   schema: z.object({
-    characters: z.tuple([
+    characters: z.array(z.tuple([
       z.string().describe("The name of the character."),
       z.string().describe("The gender of the character."),
       StatusSchema,
       z.string().describe("The status message of the character."),
-    ]).describe("The list of all the online characters and their gender, status, and status message."),
+    ]).describe("The list of all the online characters and their gender, status, and status message.")),
   }).describe(`The list of all the online characters and their gender, status, and status message.
     Warning: Because of the large amount of data, this command is often sent out in batches of several LIS commands. Since you got a CON before LIS, you'll know when it has sent them all.
     The characters object has a syntax of ["Name", "Gender", "Status", "Status Message"].
@@ -352,7 +359,7 @@ export const CharacterOnlineListCommand = {
 } as const;
 
 export const CharacterNowOnlineCommand = {
-  type: FChatServerCommandType.CHARACTER_NOW_ONLINE,
+  type: fchatServerCommandTypes.CHARACTER_NOW_ONLINE,
   schema: z.object({
     identity: z.string().describe("The name of the character."),
     gender: z.string().describe("The gender of the character."),
@@ -362,7 +369,7 @@ export const CharacterNowOnlineCommand = {
 } as const;
 
 export const IgnoreListCommand = {
-  type: FChatServerCommandType.IGNORE_LIST,
+  type: fchatServerCommandTypes.IGNORE_LIST,
   schema: z.discriminatedUnion("action", [
     z.object({
       action: z.literal("init"),
@@ -384,7 +391,7 @@ export const IgnoreListCommand = {
 } as const;
 
 export const FriendsListCommand = {
-  type: FChatServerCommandType.FRIENDS_LIST,
+  type: fchatServerCommandTypes.FRIENDS_LIST,
   schema: z.object({
     characters: z.array(z.string()).describe("The list of characters in the friends list."),
   }).describe(`The list of friends.
@@ -392,10 +399,10 @@ export const FriendsListCommand = {
 } as const;
 
 export const OpenPrivateRoomsListCommand = {
-  type: FChatServerCommandType.OPEN_PRIVATE_ROOMS_LIST,
+  type: fchatServerCommandTypes.OPEN_PRIVATE_ROOMS_LIST,
   schema: z.object({
     channels: z.array(z.object({
-      name: z.string().describe("The private room ID."),
+      name: channelSchema.describe("The private room ID."),
       characters: z.number().describe("The amount of characters in the channel."),
       title: z.string().describe("The display name for the channel."),
     })),
@@ -404,14 +411,14 @@ export const OpenPrivateRoomsListCommand = {
 } as const;
 
 export const PingCommand = {
-  type: FChatServerCommandType.PING,
+  type: fchatServerCommandTypes.PING,
   schema: z.undefined()
   .describe(`The ping command.
     Example: PIN`)
 } as const;
 
 export const ProfileDataResponseCommand = {
-  type: FChatServerCommandType.PROFILE_DATA_RESPONSE,
+  type: fchatServerCommandTypes.PROFILE_DATA_RESPONSE,
   schema: z.object({
     type: z.enum(["start", "info", "select", "end"]).describe("The type of profile data."),
     message: z.string().describe("The message to display to the user."),
@@ -422,7 +429,7 @@ export const ProfileDataResponseCommand = {
 } as const;
 
 export const PrivateMessageReceivedCommand = {
-  type: FChatServerCommandType.PRIVATE_MESSAGE_RECEIVED,
+  type: fchatServerCommandTypes.PRIVATE_MESSAGE_RECEIVED,
   schema: z.object({
     character: z.string().describe("The character that sent the private message."),
     message: z.string().describe("The message sent by the character."),
@@ -432,18 +439,18 @@ export const PrivateMessageReceivedCommand = {
 } as const;
 
 export const MessageReceivedCommand = {
-  type: FChatServerCommandType.MESSAGE_RECEIVED,
+  type: fchatServerCommandTypes.MESSAGE_RECEIVED,
   schema: z.object({
     character: z.string().describe("The character that sent the message."),
     message: z.string().describe("The message sent by the character."),
-    channel: z.string().describe("The channel that the message was sent in."),
+    channel: channelSchema.describe("The channel that the message was sent in."),
   }).describe(`The message received from another user in a channel.
     Warning: There is flood control and a max length. As with all commands that refer to a specific channel, official/public channels use the name, but unofficial/private/open private rooms use the channel ID, which can be gotten from ORS.
     Example: MSG {"character":"Teal Deer", "message":"Hello, how are you?", "channel":"Frontpage"}`)
 } as const;
 
 export const RoleplayAdReceivedCommand = {
-  type: FChatServerCommandType.ROLEPLAY_AD_RECEIVED,
+  type: fchatServerCommandTypes.ROLEPLAY_AD_RECEIVED,
   schema: z.object({
     character: z.string().describe("The character that sent the roleplay ad."),
     message: z.string().describe("The message sent by the character."),
@@ -453,7 +460,7 @@ export const RoleplayAdReceivedCommand = {
 } as const;
 
 export const RollResultCommand = {
-  type: FChatServerCommandType.ROLL_RESULT,
+  type: fchatServerCommandTypes.ROLL_RESULT,
   schema: z.discriminatedUnion("type", [
     z.object({
       type: z.literal("dice"),
@@ -478,9 +485,9 @@ export const RollResultCommand = {
 } as const;
 
 export const RoomModeChangedCommand = {
-  type: FChatServerCommandType.ROOM_MODE_CHANGED,
+  type: fchatServerCommandTypes.ROOM_MODE_CHANGED,
   schema: z.object({
-    channel: z.string().describe("The channel that the room mode was changed for."),
+    channel: channelSchema.describe("The channel that the room mode was changed for."),
     mode: RoomModeSchema,
   }).describe(`The room mode was changed.
     Warning: As with all commands that refer to a specific channel, official/public channels use the name, but unofficial/private/open private rooms use the channel ID, which can be gotten from ORS.
@@ -488,7 +495,7 @@ export const RoomModeChangedCommand = {
 } as const;
 
 export const RealTimeBridgeCommand = {
-  type: FChatServerCommandType.REAL_TIME_BRIDGE,
+  type: fchatServerCommandTypes.REAL_TIME_BRIDGE,
   schema: z.object({
     type: z.enum(["note", "message"]).describe("The type of real time bridge."),
     character: z.string().describe("The character that sent the real time bridge."),
@@ -496,7 +503,7 @@ export const RealTimeBridgeCommand = {
 } as const;
 
 export const AdminAlertConfirmationCommand = {
-  type: FChatServerCommandType.ADMIN_ALERT_CONFIRMATION,
+  type: fchatServerCommandTypes.ADMIN_ALERT_CONFIRMATION,
   schema: z.discriminatedUnion("action", [
     z.object({
       action: z.literal("confirm"),
@@ -518,27 +525,27 @@ export const AdminAlertConfirmationCommand = {
 } as const;
 
 export const StatusChangedForCharacterCommand = {
-  type: FChatServerCommandType.STATUS_CHANGED_FOR_CHARACTER,
+  type: fchatServerCommandTypes.STATUS_CHANGED_FOR_CHARACTER,
   schema: z.object({
     character: z.string().describe("The character that had their status changed."),
     status: StatusSchema,
-    statusmessage: z.string().describe("The status message of the character."),
+    statusmsg: z.string().describe("The status message of the character."),
   }).describe(`The status of a character was changed.
     Example: {"status":"looking","character":"Jippen Faddoul","statusmsg":"Just testing something"}`)
 } as const;
 
 export const SystemMessageCommand = {
-  type: FChatServerCommandType.SYSTEM_MESSAGE,
+  type: fchatServerCommandTypes.SYSTEM_MESSAGE,
   schema: z.object({
     message: z.string().describe("The message sent by the server."),
-    channel: z.string().describe("The channel that the status change was sent in. This is optional depending on the command the system message is responding to.").optional(),
+    channel: channelSchema.describe("The channel that the status change was sent in. This is optional depending on the command the system message is responding to.").optional(),
   }).describe(`An informative autogenerated message from the server. This is also the way the server responds to some commands, such as RST, CIU, CBL, COL, and CUB. The server will sometimes send this in concert with a response command, such as with SFC, COA, and COR.
     Example: SYS { "message":"Testytest has been added to the moderator list for derp","channel": "ADH-011aeb5bb591b1f4721a"}
     Example SYS { "message":"Your invitation has been sent" }`)
 } as const;
 
 export const TypingStatusChangedCommand = {
-  type: FChatServerCommandType.TYPING_STATUS_CHANGED,
+  type: fchatServerCommandTypes.TYPING_STATUS_CHANGED,
   schema: z.object({
     character: z.string().describe("The character that is typing."),
     status: z.enum(["clear", "paused", "typing"]).describe("The status of the character."),
@@ -547,7 +554,7 @@ export const TypingStatusChangedCommand = {
 } as const;
 
 export const ServerPosixTimeCommand = {
-  type: FChatServerCommandType.SERVER_POSIX_TIME,
+  type: fchatServerCommandTypes.SERVER_POSIX_TIME,
   schema: z.object({
     time: z.number().describe("The POSIX time of the server."),
     starttime: z.number().describe("The last start time of the server."),
@@ -561,12 +568,10 @@ export const ServerPosixTimeCommand = {
 } as const;
 
 export const ServerVariablesCommand = {
-  type: FChatServerCommandType.SERVER_VARIABLES,
+  type: fchatServerCommandTypes.SERVER_VARIABLES,
   schema: z.object({
-    variables: z.array(z.object({
-      variable: z.string().describe("The name of the variable."),
-      value: z.union([z.string(), z.number(), z.array(z.string())]).describe("The value of the variable."),
-    })),
+    variable: z.string().describe("The name of the variable."),
+    value: z.union([z.string(), z.number(), z.array(z.string())]).describe("The value of the variable."),
   }).describe(`Variables the server sends to inform the client about server variables.
     Example: VAR {"value":4096,"variable":"chat_max"}
     Example: VAR {"value":50000,"variable":"priv_max"}
@@ -612,97 +617,104 @@ export const ServerVariablesCommand = {
 
 export const commandTypeToCommandObjectMap = {
     /** Sends the client the current list of chatops. */
-    [FChatServerCommandType.ADMIN_LIST]: AdminListCommand,
+    [fchatServerCommandTypes.ADMIN_LIST]: AdminListCommand,
     /** The given character has been promoted to chatop. */
-    [FChatServerCommandType.ADMIN_ADDED]: AdminAddedCommand,
+    [fchatServerCommandTypes.ADMIN_ADDED]: AdminAddedCommand,
     /** Incoming admin broadcast. */
-    [FChatServerCommandType.ADMIN_BROADCAST]: AdminBroadcastCommand,
+    [fchatServerCommandTypes.ADMIN_BROADCAST]: AdminBroadcastCommand,
     /** Alerts the client that that the channel's description has changed. This is sent whenever a client sends a JCH to the server. */
-    [FChatServerCommandType.CHANNEL_DESCRIPTION]: ChannelDescriptionCommand,
+    [fchatServerCommandTypes.CHANNEL_DESCRIPTION]: ChannelDescriptionCommand,
     /** Sends the client a list of all public channels. */
-    [FChatServerCommandType.CHANNEL_LIST]: ChannelListCommand,
+    [fchatServerCommandTypes.CHANNEL_LIST]: ChannelListCommand,
     /** Invites a user to a channel. */
-    [FChatServerCommandType.CHANNEL_INVITE_RECEIVED]: ChannelInviteReceivedCommand,
+    [fchatServerCommandTypes.CHANNEL_INVITE_RECEIVED]: ChannelInviteReceivedCommand,
     /** This command requires channel op or higher. Removes a user from a channel, and prevents them from re-entering. */
-    [FChatServerCommandType.CHANNEL_BAN]: ChannelBanCommand,
+    [fchatServerCommandTypes.CHANNEL_BAN]: ChannelBanCommand,
     /** This command requires channel op or higher. Kicks a user from a channel. */
-    [FChatServerCommandType.CHANNEL_KICK]: ChannelKickCommand,
+    [fchatServerCommandTypes.CHANNEL_KICK]: ChannelKickCommand,
     /** This command requires channel op or higher. Promotes a user to channel operator. */
-    [FChatServerCommandType.CHANNEL_OPERATOR_ADD]: ChannelOperatorAddCommand,
+    [fchatServerCommandTypes.CHANNEL_OPERATOR_ADD]: ChannelOperatorAddCommand,
     /** Gives a list of channel ops. Sent in response to JCH. */
-    [FChatServerCommandType.CHANNEL_OPERATOR_LIST]: ChannelOperatorListCommand,
+    [fchatServerCommandTypes.CHANNEL_OPERATOR_LIST]: ChannelOperatorListCommand,
     /** After connecting and identifying you will receive a CON command, giving the number of connected users to the network. */
-    [FChatServerCommandType.CONNECTION_AMOUNT]: ConnectionAmountCommand,
+    [fchatServerCommandTypes.CONNECTED]: ConnectionAmountCommand,
     /** This command requires channel op or higher. Removes a channel operator. */
-    [FChatServerCommandType.CHANNEL_OPERATOR_REMOVE]: ChannelOperatorRemoveCommand,
+    [fchatServerCommandTypes.CHANNEL_OPERATOR_REMOVE]: ChannelOperatorRemoveCommand,
     /** Sets the owner of the current channel to the character provided. */
-    [FChatServerCommandType.CHANNEL_SET_OWNER]: ChannelSetOwnerCommand,
+    [fchatServerCommandTypes.CHANNEL_SET_OWNER]: ChannelSetOwnerCommand,
     /** Temporarily bans a user from the channel for 1-90 minutes. A channel timeout. */
-    [FChatServerCommandType.CHANNEL_TEMP_BAN]: ChannelTempBanCommand,
+    [fchatServerCommandTypes.CHANNEL_TEMP_BAN]: ChannelTempBanCommand,
     /** The given character has been stripped of chatop status. */
-    [FChatServerCommandType.ADMIN_REMOVED]: AdminRemovedCommand,
+    [fchatServerCommandTypes.ADMIN_REMOVED]: AdminRemovedCommand,
     /** Indicates that the given error has occurred. */
-    [FChatServerCommandType.ERROR]: ErrorCommand,
+    [fchatServerCommandTypes.ERROR]: ErrorCommand,
     /** Sent by as a response to the client's FKS command, containing the results of the search. */
-    [FChatServerCommandType.FCHAT_KINKSEARCH_RESULT]: FchatKinkSearchResultCommand,
+    [fchatServerCommandTypes.FCHAT_KINKSEARCH_RESULT]: FchatKinkSearchResultCommand,
     /** Sent by the server to inform the client a given character went offline. */
-    [FChatServerCommandType.CHARACTER_WENT_OFFLINE]: CharacterWentOfflineCommand,
+    [fchatServerCommandTypes.CHARACTER_WENT_OFFLINE]: CharacterWentOfflineCommand,
     /** Server hello command. Tells which server version is running and who wrote it. */
-    [FChatServerCommandType.SERVER_HELLO]: ServerHelloCommand,
+    [fchatServerCommandTypes.SERVER_HELLO]: ServerHelloCommand,
     /** Initial channel data. Received in response to JCH, along with CDS. */
-    [FChatServerCommandType.INITIAL_CHANNEL_DATA]: InitialChannelDataCommand,
+    [fchatServerCommandTypes.INITIAL_CHANNEL_DATA]: InitialChannelDataCommand,
     /** Used to inform the client their identification is successful, and handily sends their character name along with it. */
-    [FChatServerCommandType.IDENTITY]: IdentityCommand,
+    [fchatServerCommandTypes.IDENTITY]: IdentityCommand,
     /** Indicates the given user has joined the given channel. This may also be the client's character. */
-    [FChatServerCommandType.CHARACTER_JOINED_CHANNEL]: CharacterJoinedChannelCommand,
+    [fchatServerCommandTypes.CHARACTER_JOINED_CHANNEL]: CharacterJoinedChannelCommand,
     /** Kinks data in response to a KIN client command. */
-    [FChatServerCommandType.KINK_DATA]: KinkDataCommand,
+    [fchatServerCommandTypes.KINK_DATA]: KinkDataCommand,
     /** An indicator that the given character has left the channel. This may also be the client's character. */
-    [FChatServerCommandType.CHARACTER_LEFT_CHANNEL]: CharacterLeftChannelCommand,
+    [fchatServerCommandTypes.CHARACTER_LEFT_CHANNEL]: CharacterLeftChannelCommand,
     /** Sends an array of all the online characters and their gender, status, and status message. */
-    [FChatServerCommandType.CHARACTER_ONLINE_LIST]: CharacterOnlineListCommand,
+    [fchatServerCommandTypes.CHARACTER_ONLINE_LIST]: CharacterOnlineListCommand,
     /** A user connected. */
-    [FChatServerCommandType.CHARACTER_NOW_ONLINE]: CharacterNowOnlineCommand,
+    [fchatServerCommandTypes.CHARACTER_NOW_ONLINE]: CharacterNowOnlineCommand,
     /** Handles the ignore list. */
-    [FChatServerCommandType.IGNORE_LIST]: IgnoreListCommand,
+    [fchatServerCommandTypes.IGNORE_LIST]: IgnoreListCommand,
     /** Initial friends list. FRL is a combination of all of this account's bookmarks and friends. */
-    [FChatServerCommandType.FRIENDS_LIST]: FriendsListCommand,
+    [fchatServerCommandTypes.FRIENDS_LIST]: FriendsListCommand,
     /** Gives a list of open private rooms. */
-    [FChatServerCommandType.OPEN_PRIVATE_ROOMS_LIST]: OpenPrivateRoomsListCommand,
+    [fchatServerCommandTypes.OPEN_PRIVATE_ROOMS_LIST]: OpenPrivateRoomsListCommand,
     /** Ping command from the server, requiring a response, to keep the connection alive. */
-    [FChatServerCommandType.PING]: PingCommand,
+    [fchatServerCommandTypes.PING]: PingCommand,
     /** Profile data commands sent in response to a PRO client command. */
-    [FChatServerCommandType.PROFILE_DATA_RESPONSE]: ProfileDataResponseCommand,
+    [fchatServerCommandTypes.PROFILE_DATA_RESPONSE]: ProfileDataResponseCommand,
     /** A private message is received from another user. */
-    [FChatServerCommandType.PRIVATE_MESSAGE_RECEIVED]: PrivateMessageReceivedCommand,
+    [fchatServerCommandTypes.PRIVATE_MESSAGE_RECEIVED]: PrivateMessageReceivedCommand,
     /** A message is received from a user in a channel. */
-    [FChatServerCommandType.MESSAGE_RECEIVED]: MessageReceivedCommand,
+    [fchatServerCommandTypes.MESSAGE_RECEIVED]: MessageReceivedCommand,
     /** A roleplay ad is received from a user in a channel. */
-    [FChatServerCommandType.ROLEPLAY_AD_RECEIVED]: RoleplayAdReceivedCommand,
+    [fchatServerCommandTypes.ROLEPLAY_AD_RECEIVED]: RoleplayAdReceivedCommand,
     /** Rolls dice or spins the bottle. */
-    [FChatServerCommandType.ROLL_RESULT]: RollResultCommand,
+    [fchatServerCommandTypes.ROLL_RESULT]: RollResultCommand,
     /** Change room mode to accept chat, ads, or both. */
-    [FChatServerCommandType.ROOM_MODE_CHANGED]: RoomModeChangedCommand,
+    [fchatServerCommandTypes.ROOM_MODE_CHANGED]: RoomModeChangedCommand,
     /** Real-time bridge. Indicates the user received a note or message, right at the very moment this is received. */
-    [FChatServerCommandType.REAL_TIME_BRIDGE]: RealTimeBridgeCommand,
+    [fchatServerCommandTypes.REAL_TIME_BRIDGE]: RealTimeBridgeCommand,
     /** Alerts admins and chatops (global moderators) of an issue. */
-    [FChatServerCommandType.ADMIN_ALERT_CONFIRMATION]: AdminAlertConfirmationCommand,
+    [fchatServerCommandTypes.ADMIN_ALERT_CONFIRMATION]: AdminAlertConfirmationCommand,
     /** A user changed their status */
-    [FChatServerCommandType.STATUS_CHANGED_FOR_CHARACTER]: StatusChangedForCharacterCommand,
+    [fchatServerCommandTypes.STATUS_CHANGED_FOR_CHARACTER]: StatusChangedForCharacterCommand,
     /** An informative autogenerated message from the server. This is also the way the server responds to some commands, such as RST, CIU, CBL, COL, and CUB. The server will sometimes send this in concert with a response command, such as with SFC, COA, and COR. */
-    [FChatServerCommandType.SYSTEM_MESSAGE]: SystemMessageCommand,
+    [fchatServerCommandTypes.SYSTEM_MESSAGE]: SystemMessageCommand,
     /** A user informs you of his typing status. */
-    [FChatServerCommandType.TYPING_STATUS_CHANGED]: TypingStatusChangedCommand,
+    [fchatServerCommandTypes.TYPING_STATUS_CHANGED]: TypingStatusChangedCommand,
     /** Informs the client of the server's self-tracked online time, and a few other bits of information */
-    [FChatServerCommandType.SERVER_POSIX_TIME]: ServerPosixTimeCommand,
+    [fchatServerCommandTypes.SERVER_POSIX_TIME]: ServerPosixTimeCommand,
     /** Variables the server sends to inform the client about server variables. */
-    [FChatServerCommandType.SERVER_VARIABLES]: ServerVariablesCommand,
+    [fchatServerCommandTypes.SERVER_VARIABLES]: ServerVariablesCommand,
 } as const;
 
-export const getSchemaForCommand = (command: FChatServerCommandType) => {
-  return commandTypeToCommandObjectMap[command].schema;
-}
+export type FChatServerCommandKey = keyof typeof fchatServerCommandTypes;
+export type FChatServerCommandType = typeof fchatServerCommandTypes[FChatServerCommandKey];
 
+/**
+ * Get the command object definition for a given command.
+ */
 export function getCommandObjectForCommand<T extends FChatServerCommandType>(command: T): typeof commandTypeToCommandObjectMap[T] {
   return commandTypeToCommandObjectMap[command];
 }
+
+/**
+ * Get the schema for a given command.
+ */
+export type SchemaForCommand<T extends FChatServerCommandType> = z.infer<typeof commandTypeToCommandObjectMap[T]["schema"]>;
