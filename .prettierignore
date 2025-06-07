@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Config files that may have specific formatting
+package-lock.json
+
+# IDE files
+.vscode/
+.idea/
+
+# Git
+.git/
+
+# Coverage
+coverage/
+
+# Temporary files
+*.tmp
+*.temp 
