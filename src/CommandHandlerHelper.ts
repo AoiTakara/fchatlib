@@ -2,6 +2,7 @@
 /* eslint-disable @typescript-eslint/no-unsafe-call */
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 
+import { resolve, isAbsolute } from 'node:path';
 import CommandHandler from './CommandHandler';
 import { IPlugin } from './Interfaces/IPlugin';
 import RequireClean from './requireClean';
@@ -19,11 +20,11 @@ export class CommandHandlerHelper {
       commandHandler.pluginsLoaded.splice(indexPluginAlreadyExists, 1);
     }
 
-    const path = `${process.cwd()}/plugins/${pluginName}`;
+    const pluginPath = this.getPluginPath(pluginName);
 
     try {
       const plugin: IPlugin = { name: '', instanciatedPlugin: {} };
-      const customPlugin: any = new RequireClean(path);
+      const customPlugin: any = new RequireClean(pluginPath);
       plugin.name = pluginName;
       plugin.instanciatedPlugin = new customPlugin[plugin.name](
         this.commandHandler.fChatLibInstance,
@@ -54,7 +55,7 @@ export class CommandHandlerHelper {
       }
     } catch (ex) {
       if (ex && (ex as any).code === 'MODULE_NOT_FOUND') {
-        const safeToDisplayPath = path.substr(path.indexOf('plugins'));
+        const safeToDisplayPath = pluginPath.substr(pluginPath.indexOf('plugins'));
         void this.commandHandler.fChatLibInstance.sendMessage(
           `Plugin ${pluginName} couldn't be found. (Path: '${safeToDisplayPath}' )`,
           commandHandler.channelName
@@ -71,6 +72,14 @@ export class CommandHandlerHelper {
           commandHandler.channelName
         );
       }
+    }
+  }
+
+  private getPluginPath(pluginName: string): string {
+    if (isAbsolute(this.commandHandler.fChatLibInstance.config.pluginFolder)) {
+      return resolve(`${this.commandHandler.fChatLibInstance.config.pluginFolder}`, pluginName);
+    } else {
+      return resolve(process.cwd(), this.commandHandler.fChatLibInstance.config.pluginFolder, pluginName);
     }
   }
 
@@ -113,7 +122,7 @@ export class CommandHandlerHelper {
         this.commandHandler.pluginsLoaded.splice(indexPluginAlreadyExists, 1);
       }
 
-      const path = `${process.cwd()}/plugins/${plugin.name}`;
+      const path = this.getPluginPath(plugin.name);
       try {
         const customPlugin: any = new RequireClean(path);
         plugin.instanciatedPlugin = new customPlugin[plugin.name](

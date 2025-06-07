@@ -3,7 +3,6 @@ import { writeFileSync, statSync, mkdirSync, existsSync, readFileSync } from 'no
 import request from 'request';
 import ws, { WebSocket } from 'ws';
 import { z } from 'zod';
-import { bbcBold } from './bbCode';
 import CommandHandler from './CommandHandler';
 import { CharacterGender, CharacterStatus } from './commonSchemas';
 import {
@@ -18,7 +17,7 @@ import {
   getCommandObjectForCommand,
   type SchemaForCommand,
 } from './FchatServerCommands';
-import { IConfig, LogLevel } from './Interfaces/IConfig';
+import { configSchema, IConfig } from './Interfaces/IConfig';
 import { IPlugin } from './Interfaces/IPlugin';
 
 // eslint-disable-next-line no-undef
@@ -103,8 +102,7 @@ export default class FChatLib {
     }
   }
 
-  readonly config: IConfig;
-  private readonly logLevel: LogLevel;
+  readonly config: Required<IConfig>;
 
   private usersInChannel: Record<string, string[]> = {};
   private chatOPsInChannel: Record<string, string[]> = {};
@@ -124,8 +122,6 @@ export default class FChatLib {
   floodLimit: number = 2.0;
   private lastTimeCommandReceived: number = Number.MAX_VALUE;
   private commandsInQueue: number = 0;
-  private readonly saveFolder: string;
-  private readonly saveFileName: string;
 
   private timeout(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
@@ -147,33 +143,18 @@ export default class FChatLib {
   }
 
   constructor(configuration: IConfig) {
-    if (configuration === null) {
-      console.log('No configuration passed, cannot start.');
+    const parsedConfig = configSchema.safeParse(configuration);
+    if (!parsedConfig.success) {
+      console.error('Invalid configuration passed, cannot start.', parsedConfig.error);
       process.exit();
-    } else {
-      this.config = configuration;
-      if (
-        this.config.username === undefined ||
-        this.config.username === '' ||
-        this.config.password === undefined ||
-        this.config.password === '' ||
-        this.config.character === '' ||
-        this.config.character === '' ||
-        this.config.master === '' ||
-        this.config.master === ''
-      ) {
-        console.log('Wrong parameters passed. All the fields in the configuration file are required.');
-        process.exit();
-      }
     }
-
-    this.logLevel = this.config.logLevel ?? 'info';
-    this.saveFolder = this.config.saveFolder ?? `${process.cwd()}/config/`;
-    this.saveFileName = this.config.saveFileName ?? 'config.rooms.js';
+    this.config = parsedConfig.data;
 
     try {
-      if (statSync(this.saveFolder + this.saveFileName)) {
-        const savePluginMap: unknown = JSON.parse(readFileSync(this.saveFolder + this.saveFileName, 'utf8'));
+      if (statSync(this.config.saveFolder + this.config.saveFileName)) {
+        const savePluginMap: unknown = JSON.parse(
+          readFileSync(this.config.saveFolder + this.config.saveFileName, 'utf8')
+        );
         const parsed = savePluginMapSchema.safeParse(savePluginMap);
         if (parsed.success) {
           this.channels = parsed.data;
@@ -251,14 +232,14 @@ export default class FChatLib {
   }
 
   public debugLog(...args: unknown[]): void {
-    if (this.logLevel === 'debug') {
+    if (this.config.logLevel === 'debug') {
       console.log(...args);
     }
   }
 
   // TODO: Add a proper logging system
   public infoLog(...args: unknown[]): void {
-    if (this.logLevel === 'debug' || this.logLevel === 'info') {
+    if (this.config.logLevel === 'debug' || this.config.logLevel === 'info') {
       console.info(...args);
     }
   }
@@ -268,7 +249,7 @@ export default class FChatLib {
   }
 
   public errorLog(...args: unknown[]): void {
-    if (this.logLevel === 'debug' || this.logLevel === 'info' || this.logLevel === 'error') {
+    if (this.config.logLevel === 'debug' || this.config.logLevel === 'info' || this.config.logLevel === 'error') {
       console.error(...args);
     }
   }
@@ -666,8 +647,8 @@ export default class FChatLib {
   }
 
   updateRoomsConfig(): void {
-    if (!existsSync(this.saveFolder)) {
-      mkdirSync(this.saveFolder);
+    if (!existsSync(this.config.saveFolder)) {
+      mkdirSync(this.config.saveFolder);
     }
 
     const savePluginMap: SavePluginMap = {};
@@ -677,7 +658,7 @@ export default class FChatLib {
       }));
     }
 
-    writeFileSync(this.saveFolder + this.saveFileName, JSON.stringify(savePluginMap));
+    writeFileSync(this.config.saveFolder + this.config.saveFileName, JSON.stringify(savePluginMap));
   }
 
   private startWebsockets(idnObject: Ticket): void {
@@ -795,12 +776,16 @@ export default class FChatLib {
     return result;
   }
 
-  public sendParseMessage(commandName: string, zodError: z.ZodError, channel: string): Promise<void> {
+  public sendParseMessage(
+    commandName: string,
+    zodSchema: z.ZodType<unknown>,
+    zodError: z.ZodError,
+    channel: string
+  ): Promise<void> {
+    const schemaDescription = zodSchema.description ? `\nSchema Description: ${zodSchema.description}` : '';
     const errorMessage = zodError.issues.map((issue) => `-> ${issue.message || issue.code}`).join('\n');
-    return this.sendMessage(
-      `Invalid Arguments for !${bbcBold(commandName)}. See the following issues for more information:\n${errorMessage}`,
-      channel
-    );
+
+    return this.sendMessage(`Invalid Arguments for !${commandName}.${schemaDescription}\n${errorMessage}`, channel);
   }
 }
 
