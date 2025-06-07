@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
+/* eslint-disable @typescript-eslint/no-unsafe-call */
 import { z } from 'zod';
 import { CommandHandlerHelper } from './CommandHandlerHelper';
 import { statusSchema } from './commonSchemas';
