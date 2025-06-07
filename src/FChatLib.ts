@@ -7,7 +7,7 @@ import request from "request";
 import { writeFileSync, statSync, mkdirSync, existsSync, readFileSync } from 'node:fs';
 import { FChatServerCommandType, fchatServerCommandTypes, getCommandObjectForCommand, type SchemaForCommand} from './FchatServerCommands'
 import { CharacterGender, CharacterStatus } from './commonSchemas';
-import { ClientCommandSchema, FChatClientCommandKey, FChatClientCommandType, fchatClientCommandTypes, getClientCommand } from "./fchatClientCommands";
+import { ClientCommandSchema, FChatClientCommandType, fchatClientCommandTypes, getClientCommand } from "./fchatClientCommands";
 
 export type FChatListener<T> = (args: T) => void | Promise<void>;
 
@@ -481,7 +481,7 @@ export default class FChatLib {
     }
 
     isUserMaster(username: string):boolean{
-        return (username == this.config.master);
+        return (username.toLowerCase() == this.config.master.toLowerCase());
     }
 
     disconnect():void {

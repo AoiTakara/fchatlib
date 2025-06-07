@@ -99,7 +99,7 @@ export default class CommandHandler{
     }
 
     greload(args, data) {
-        if(data.character == this.fChatLibInstance.config.master){
+        if(this.fChatLibInstance.isUserMaster(data.character)){
             for(let i = 0; i < this.fChatLibInstance.channels.size; i++){
                 this.fChatLibInstance.softRestart(this.fChatLibInstance.channels.keys()[i]);
             }
@@ -111,7 +111,7 @@ export default class CommandHandler{
     }
 
     grestart(args, data) {
-        if(data.character == this.fChatLibInstance.config.master){
+        if(this.fChatLibInstance.isUserMaster(data.character)){
             this.fChatLibInstance.restart();
         }
         else{
@@ -120,7 +120,7 @@ export default class CommandHandler{
     }
 
     gdisableinvites(args, data) {
-        if(data.character == this.fChatLibInstance.config.master){
+        if(this.fChatLibInstance.isUserMaster(data.character)){
             this.fChatLibInstance.removeCommandListener(fchatServerCommandTypes.CHANNEL_INVITE_RECEIVED, this.fChatLibInstance.joinChannelsWhereInvited)
         }
         else{
@@ -129,7 +129,7 @@ export default class CommandHandler{
     }
 
     genableinvites(args, data) {
-        if(data.character == this.fChatLibInstance.config.master){
+        if(this.fChatLibInstance.isUserMaster(data.character)){
             this.fChatLibInstance.removeCommandListener(fchatServerCommandTypes.CHANNEL_INVITE_RECEIVED, this.fChatLibInstance.joinChannelsWhereInvited)
             this.fChatLibInstance.addCommandListener(fchatServerCommandTypes.CHANNEL_INVITE_RECEIVED, this.fChatLibInstance.joinChannelsWhereInvited)
         }
@@ -139,7 +139,7 @@ export default class CommandHandler{
     }
 
     gjoinchannel(args, data) {
-        if(data.character == this.fChatLibInstance.config.master){
+        if(this.fChatLibInstance.isUserMaster(data.character)){
             this.fChatLibInstance.joinNewChannel(args);
         }
         else{
@@ -148,7 +148,7 @@ export default class CommandHandler{
     }
 
     gstatus(args, data) {
-        if(data.character == this.fChatLibInstance.config.master){
+        if(this.fChatLibInstance.isUserMaster(data.character)){
             var splittedArgs = args.split(" ");
             this.fChatLibInstance.setStatus(splittedArgs.shift(), splittedArgs.join(" ")); //need validation
         }
@@ -178,7 +178,7 @@ export default class CommandHandler{
     }
 
     loadplugin(args, data) {
-        if(data.character == this.fChatLibInstance.config.master){
+        if(this.fChatLibInstance.isUserMaster(data.character)){
             if(args == undefined || args == ""){
                 this.fChatLibInstance.sendMessage("Wrong parameter. Example: !loadplugin pluginname", data.channel);
             }
@@ -201,7 +201,7 @@ export default class CommandHandler{
     }
 
     unloadplugin(args, data) {
-        if(data.character == this.fChatLibInstance.config.master){
+        if(this.fChatLibInstance.isUserMaster(data.character)){
             this.commandHandlerHelper.internalUnloadPlugin(args);
         }
         else{
