@@ -22,15 +22,6 @@
     "skipLibCheck": true,
     "pretty": true
   },
-  "exclude": [
-    "node_modules",
-    "node_modules/**",
-    "dist",
-    "eslint.config.js",
-    ".prettierrc.js"
-  ],
-  "include": [
-    "./src/**/*.ts",
-    "./test/**/*.ts"
-  ]
+  "exclude": ["node_modules", "node_modules/**", "dist", "eslint.config.js", ".prettierrc.js"],
+  "include": ["./src/**/*.ts", "./test/**/*.ts"]
 }

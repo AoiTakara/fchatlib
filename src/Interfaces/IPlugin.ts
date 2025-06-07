@@ -1,4 +1,4 @@
-export interface IPlugin{
-    name: string;
-    instanciatedPlugin: any;
+export interface IPlugin {
+  name: string;
+  instanciatedPlugin: any;
 }
