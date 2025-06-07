@@ -6,7 +6,8 @@ import {IMsgEvent} from "./Interfaces/IMsgEvent";
 import ws, { WebSocket } from 'ws';
 import request from "request";
 import { writeFileSync, statSync, mkdirSync, existsSync, readFileSync } from 'node:fs';
-import { CharacterStatus, FChatServerCommandType, fchatServerCommandTypes, getCommandObjectForCommand, type SchemaForCommand} from './FchatServerCommands'
+import { FChatServerCommandType, fchatServerCommandTypes, getCommandObjectForCommand, type SchemaForCommand} from './FchatServerCommands'
+import { CharacterGender, CharacterStatus } from './commonSchemas';
 
 export type FChatListener<T> = (args: T) => void | Promise<void>;
 
@@ -315,11 +316,11 @@ export default class FChatLib {
 
         if(character != ""){
             if(this.users[character] === undefined){
-                this.users[character] = [character, "", "online", ""];
+                this.users[character] = [character, "None", "online", ""];
             }
     
             if(gender != ""){
-                this.users[character][1] = gender;
+                this.users[character][1] = gender as CharacterGender;
             }
             
             if(status != ""){

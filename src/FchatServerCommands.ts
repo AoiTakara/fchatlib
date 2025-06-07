@@ -1,23 +1,6 @@
 import { z } from 'zod';
+import { channelSchema, characterGenderSchema, roomModeSchema, statusSchema, typingStatusSchema } from './commonSchemas';
 
-const channelSchema = z.string().describe("The name of the channel.").transform(val => val.toLowerCase());
-
-export const RoomModeSchema = z.enum(["chat", "both", "ads"]).describe(`The mode of the channel.
-  chat: Show only MSG.
-  both: Show MSG and LRP.
-  ads: Show LRP.`);
-export type RoomMode = z.infer<typeof RoomModeSchema>;
-
-export const StatusSchema = z.enum(["online", "looking", "busy", "dnd", "idle", "away", "crown"]).describe(`The status of the character.
-  online: The character is online.
-  looking: The character is looking for roleplay.
-  busy: The character is busy.
-  dnd: The character is busy.
-  idle: The character is idle. This is only set by some clients, and is usually unused.
-  away: The character is away.
-  crown: This is a special status that should not be set by the client. It is set by the RDS command.`);
-
-export type CharacterStatus = z.infer<typeof StatusSchema>;
 
 /** The entire list of valid F-Chat server commands.
  * See https://wiki.f-list.net/F-Chat_Server_Commands for more information. */
@@ -147,7 +130,7 @@ export const ChannelListCommand = {
   schema: z.object({
     channels: z.array(z.object({
       name: channelSchema.describe("The name of the channel."),
-      mode: RoomModeSchema,
+      mode: roomModeSchema,
       characters: z.number().describe("The amount of characters in the channel.")
     }))
   }).describe(`The list of all public channels.
@@ -304,7 +287,7 @@ export const InitialChannelDataCommand = {
     users: z.array(z.object({
       identity: z.string().describe("The name of the character."),
     })),
-    mode: RoomModeSchema,
+    mode: roomModeSchema,
   }).describe(`The initial channel data.
     Warning: "mode" can be "ads", "chat", or "both".
     Example: ICH {"users": [{"identity": "Shadlor"}, {"identity": "Bunnie Patcher"}, {"identity": "DemonNeko"}, {"identity": "Desbreko"}, {"identity": "Robert Bell"}, {"identity": "Jayson"}, {"identity": "Valoriel Talonheart"}, {"identity": "Jordan Costa"}, {"identity": "Skip Weber"}, {"identity": "Niruka"}, {"identity": "Jake Brian Purplecat"}, {"identity": "Hexxy"}], "channel": "Frontpage", mode: "chat"}`)
@@ -348,8 +331,8 @@ export const CharacterOnlineListCommand = {
   schema: z.object({
     characters: z.array(z.tuple([
       z.string().describe("The name of the character."),
-      z.string().describe("The gender of the character."),
-      StatusSchema,
+      characterGenderSchema,
+      statusSchema,
       z.string().describe("The status message of the character."),
     ]).describe("The list of all the online characters and their gender, status, and status message.")),
   }).describe(`The list of all the online characters and their gender, status, and status message.
@@ -362,8 +345,8 @@ export const CharacterNowOnlineCommand = {
   type: fchatServerCommandTypes.CHARACTER_NOW_ONLINE,
   schema: z.object({
     identity: z.string().describe("The name of the character."),
-    gender: z.string().describe("The gender of the character."),
-    status: StatusSchema
+    gender: characterGenderSchema,
+    status: statusSchema
   }).describe(`The character is now online.
     Example: NLN {"status": "online", "gender": "Male", "identity": "Hexxy"}`)
 } as const;
@@ -488,7 +471,7 @@ export const RoomModeChangedCommand = {
   type: fchatServerCommandTypes.ROOM_MODE_CHANGED,
   schema: z.object({
     channel: channelSchema.describe("The channel that the room mode was changed for."),
-    mode: RoomModeSchema,
+    mode: roomModeSchema,
   }).describe(`The room mode was changed.
     Warning: As with all commands that refer to a specific channel, official/public channels use the name, but unofficial/private/open private rooms use the channel ID, which can be gotten from ORS.
     Example: RMO {"channel":"ADH-dce8eb7af86213ac4c15","mode":"chat"}`)
@@ -528,7 +511,7 @@ export const StatusChangedForCharacterCommand = {
   type: fchatServerCommandTypes.STATUS_CHANGED_FOR_CHARACTER,
   schema: z.object({
     character: z.string().describe("The character that had their status changed."),
-    status: StatusSchema,
+    status: statusSchema,
     statusmsg: z.string().describe("The status message of the character."),
   }).describe(`The status of a character was changed.
     Example: {"status":"looking","character":"Jippen Faddoul","statusmsg":"Just testing something"}`)
@@ -548,7 +531,7 @@ export const TypingStatusChangedCommand = {
   type: fchatServerCommandTypes.TYPING_STATUS_CHANGED,
   schema: z.object({
     character: z.string().describe("The character that is typing."),
-    status: z.enum(["clear", "paused", "typing"]).describe("The status of the character."),
+    status: typingStatusSchema,
   }).describe(`A user informs you of his typing status.
     Example: TPN {"character":"Leon Priest","status":"clear"}`)
 } as const;
