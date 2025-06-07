@@ -3,6 +3,7 @@ import { writeFileSync, statSync, mkdirSync, existsSync, readFileSync } from 'no
 import request from 'request';
 import ws, { WebSocket } from 'ws';
 import { z } from 'zod';
+import { bbcBold } from './bbCode';
 import CommandHandler from './CommandHandler';
 import { CharacterGender, CharacterStatus } from './commonSchemas';
 import {
@@ -19,7 +20,6 @@ import {
 } from './FchatServerCommands';
 import { IConfig, LogLevel } from './Interfaces/IConfig';
 import { IPlugin } from './Interfaces/IPlugin';
-import { bbcBold } from './bbCode';
 
 // eslint-disable-next-line no-undef
 type Timeout = NodeJS.Timeout;
