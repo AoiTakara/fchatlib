@@ -1,16 +1,9 @@
 ﻿'use strict';
-import CommandHandler from './CommandHandler';
-import { IPlugin } from './Interfaces/IPlugin';
-import { IConfig, LogLevel } from './Interfaces/IConfig';
-import ws, { WebSocket } from 'ws';
-import request from 'request';
 import { writeFileSync, statSync, mkdirSync, existsSync, readFileSync } from 'node:fs';
-import {
-  FChatServerCommandType,
-  fchatServerCommandTypes,
-  getCommandObjectForCommand,
-  type SchemaForCommand,
-} from './FchatServerCommands';
+import request from 'request';
+import ws, { WebSocket } from 'ws';
+import { z } from 'zod';
+import CommandHandler from './CommandHandler';
 import { CharacterGender, CharacterStatus } from './commonSchemas';
 import {
   ClientCommandSchema,
@@ -18,6 +11,35 @@ import {
   fchatClientCommandTypes,
   getClientCommand,
 } from './fchatClientCommands';
+import {
+  FChatServerCommandType,
+  fchatServerCommandTypes,
+  getCommandObjectForCommand,
+  type SchemaForCommand,
+} from './FchatServerCommands';
+import { IConfig, LogLevel } from './Interfaces/IConfig';
+import { IPlugin } from './Interfaces/IPlugin';
+import { bbcBold } from './bbCode';
+
+// eslint-disable-next-line no-undef
+type Timeout = NodeJS.Timeout;
+
+interface SavePlugin {
+  name: string;
+}
+
+interface SavePluginMap {
+  [channel: string]: SavePlugin[];
+}
+
+const savePluginMapSchema = z.record(
+  z.string().describe('Channel name'),
+  z.array(
+    z
+      .object({ name: z.string().describe('Plugin name') })
+      .transform<IPlugin>((data) => ({ name: data.name, instanciatedPlugin: null }))
+  )
+);
 
 interface Ticket {
   method: 'ticket';
@@ -27,7 +49,6 @@ interface Ticket {
   cname: string;
   cversion: string;
 }
-
 
 export type FChatListener<T> = (args: T) => void | Promise<void>;
 
@@ -45,13 +66,13 @@ export default class FChatLib {
 
   /** Listeners for events that are caught by a specific command. */
   private readonly commandListeners = Object.fromEntries(
-    Object.values(fchatServerCommandTypes).map((command) => [command, []]) as [FChatServerCommandType, FChatListener<SchemaForCommand<FChatServerCommandType>>[]][]
+    Object.values(fchatServerCommandTypes).map((command) => [command, []]) as [
+      FChatServerCommandType,
+      FChatListener<SchemaForCommand<FChatServerCommandType>>[],
+    ][]
   ) as Record<FChatServerCommandType, FChatListener<SchemaForCommand<FChatServerCommandType>>[]>;
 
-  addCommandListener<T extends FChatServerCommandType>(
-    command: T,
-    fn: FChatListener<SchemaForCommand<T>>
-  ): void {
+  addCommandListener<T extends FChatServerCommandType>(command: T, fn: FChatListener<SchemaForCommand<T>>): void {
     const listeners = this.commandListeners[command];
     if (!listeners) {
       throw new Error(`Command ${command} not found`);
@@ -59,10 +80,7 @@ export default class FChatLib {
     listeners.push(fn);
   }
 
-  removeCommandListener<T extends FChatServerCommandType>(
-    command: T,
-    fn: FChatListener<SchemaForCommand<T>>
-  ): void {
+  removeCommandListener<T extends FChatServerCommandType>(command: T, fn: FChatListener<SchemaForCommand<T>>): void {
     const listeners = this.commandListeners[command];
     if (!listeners) {
       throw new Error(`Command ${command} not found`);
@@ -86,7 +104,7 @@ export default class FChatLib {
   }
 
   readonly config: IConfig;
-  private logLevel: LogLevel;
+  private readonly logLevel: LogLevel;
 
   private usersInChannel: Record<string, string[]> = {};
   private chatOPsInChannel: Record<string, string[]> = {};
@@ -101,25 +119,25 @@ export default class FChatLib {
 
   private ws: WebSocket | null = null;
 
-  private pingInterval: NodeJS.Timeout | null = null;
+  private pingInterval: Timeout | null = null;
 
   floodLimit: number = 2.0;
   private lastTimeCommandReceived: number = Number.MAX_VALUE;
   private commandsInQueue: number = 0;
-  private saveFolder: string;
-  private saveFileName: string;
+  private readonly saveFolder: string;
+  private readonly saveFileName: string;
 
-  private timeout(ms: number) {
+  private timeout(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   async sendData<T extends FChatClientCommandType>(command: T, content?: ClientCommandSchema<T>): Promise<void> {
     this.commandsInQueue++;
-    let currentTime = parseInt(process.uptime().toString(), 10);
+    const currentTime = parseInt(process.uptime().toString(), 10);
 
     if (currentTime - this.lastTimeCommandReceived < this.floodLimit) {
-      let timeElapsedSinceLastCommand = currentTime - this.lastTimeCommandReceived;
-      let timeToWait = this.commandsInQueue * this.floodLimit - timeElapsedSinceLastCommand;
+      const timeElapsedSinceLastCommand = currentTime - this.lastTimeCommandReceived;
+      const timeToWait = this.commandsInQueue * this.floodLimit - timeElapsedSinceLastCommand;
       await this.timeout(timeToWait * 1000);
     }
 
@@ -129,41 +147,48 @@ export default class FChatLib {
   }
 
   constructor(configuration: IConfig) {
-    if (configuration == null) {
+    if (configuration === null) {
       console.log('No configuration passed, cannot start.');
       process.exit();
     } else {
       this.config = configuration;
       if (
-        this.config.username == undefined ||
-        this.config.username == '' ||
-        this.config.password == undefined ||
-        this.config.password == '' ||
-        this.config.character == '' ||
-        this.config.character == '' ||
-        this.config.master == '' ||
-        this.config.master == ''
+        this.config.username === undefined ||
+        this.config.username === '' ||
+        this.config.password === undefined ||
+        this.config.password === '' ||
+        this.config.character === '' ||
+        this.config.character === '' ||
+        this.config.master === '' ||
+        this.config.master === ''
       ) {
         console.log('Wrong parameters passed. All the fields in the configuration file are required.');
         process.exit();
       }
     }
 
-    this.logLevel = this.config.logLevel || 'info';
-    this.saveFolder = this.config.saveFolder || process.cwd() + '/config/';
-    this.saveFileName = this.config.saveFileName || 'config.rooms.js';
+    this.logLevel = this.config.logLevel ?? 'info';
+    this.saveFolder = this.config.saveFolder ?? `${process.cwd()}/config/`;
+    this.saveFileName = this.config.saveFileName ?? 'config.rooms.js';
 
     try {
       if (statSync(this.saveFolder + this.saveFileName)) {
-        this.channels = JSON.parse(readFileSync(this.saveFolder + this.saveFileName, 'utf8'));
+        const savePluginMap: unknown = JSON.parse(readFileSync(this.saveFolder + this.saveFileName, 'utf8'));
+        const parsed = savePluginMapSchema.safeParse(savePluginMap);
+        if (parsed.success) {
+          this.channels = parsed.data;
+        } else {
+          this.errorLog('Invalid save file format, ignoring');
+        }
       }
-    } catch (err) {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    } catch (_e) {
       //Swallow the error
     }
 
     // initial empty room from config
     const room = this.config.room.toLowerCase();
-    if (this.config.room !== undefined && this.channels[room] == null) {
+    if (this.config.room !== undefined && this.channels[room] === null) {
       this.channels[room] = [];
       this.updateRoomsConfig();
     }
@@ -185,65 +210,74 @@ export default class FChatLib {
     this.setFloodLimit(2);
 
     this.generateCommandHandlers();
-    this.addCommandListener(fchatServerCommandTypes.MESSAGE_RECEIVED, this.commandListener); // basic commands + plugins loader, one instance for one bot
-    this.addCommandListener(fchatServerCommandTypes.CONNECTED, this.joinChannelOnConnect);
+    this.addCommandListener(fchatServerCommandTypes.MESSAGE_RECEIVED, this.commandListener.bind(this)); // basic commands + plugins loader, one instance for one bot
+    this.addCommandListener(fchatServerCommandTypes.CONNECTED, this.joinChannelOnConnect.bind(this));
 
     if (this.config.autoJoinOnInvite) {
-      this.addCommandListener(fchatServerCommandTypes.CHANNEL_INVITE_RECEIVED, this.joinChannelsWhereInvited);
+      this.addCommandListener(
+        fchatServerCommandTypes.CHANNEL_INVITE_RECEIVED,
+        this.joinChannelsWhereInvited.bind(this)
+      );
     }
 
-    this.addCommandListener(fchatServerCommandTypes.SERVER_VARIABLES, this.variableChangeHandler);
+    this.addCommandListener(fchatServerCommandTypes.SERVER_VARIABLES, this.variableChangeHandler.bind(this));
 
     //user handling
-    this.addCommandListener(fchatServerCommandTypes.INITIAL_CHANNEL_DATA, this.addUsersToList);
-    this.addCommandListener(fchatServerCommandTypes.CHARACTER_WENT_OFFLINE, this.removeUserFromChannels);
-    this.addCommandListener(fchatServerCommandTypes.CHARACTER_LEFT_CHANNEL, this.removeUserFromList);
-    this.addCommandListener(fchatServerCommandTypes.CHARACTER_JOINED_CHANNEL, this.addSingleUserToList);
-    this.addCommandListener(fchatServerCommandTypes.CHARACTER_JOINED_CHANNEL, this.saveChannelNames);
+    this.addCommandListener(fchatServerCommandTypes.INITIAL_CHANNEL_DATA, this.addUsersToList.bind(this));
+    this.addCommandListener(fchatServerCommandTypes.CHARACTER_WENT_OFFLINE, this.removeUserFromChannels.bind(this));
+    this.addCommandListener(fchatServerCommandTypes.CHARACTER_LEFT_CHANNEL, this.removeUserFromList.bind(this));
+    this.addCommandListener(fchatServerCommandTypes.CHARACTER_JOINED_CHANNEL, this.addSingleUserToList.bind(this));
+    this.addCommandListener(fchatServerCommandTypes.CHARACTER_JOINED_CHANNEL, this.saveChannelNames.bind(this));
 
     //global user state management
-    this.addCommandListener(fchatServerCommandTypes.CHARACTER_ONLINE_LIST, this.addUserListToGlobalState);
-    this.addCommandListener(fchatServerCommandTypes.STATUS_CHANGED_FOR_CHARACTER, this.onChangeUpdateUserState);
-    this.addCommandListener(fchatServerCommandTypes.CHARACTER_WENT_OFFLINE, this.onChangeUpdateUserState);
-    this.addCommandListener(fchatServerCommandTypes.STATUS_CHANGED_FOR_CHARACTER, this.onChangeUpdateUserState);
+    this.addCommandListener(fchatServerCommandTypes.CHARACTER_ONLINE_LIST, this.addUserListToGlobalState.bind(this));
+    this.addCommandListener(
+      fchatServerCommandTypes.STATUS_CHANGED_FOR_CHARACTER,
+      this.onChangeUpdateUserState.bind(this)
+    );
+    this.addCommandListener(fchatServerCommandTypes.CHARACTER_WENT_OFFLINE, this.onChangeUpdateUserState.bind(this));
+    this.addCommandListener(
+      fchatServerCommandTypes.STATUS_CHANGED_FOR_CHARACTER,
+      this.onChangeUpdateUserState.bind(this)
+    );
 
     //permissions handling
-    this.addCommandListener(fchatServerCommandTypes.CHANNEL_OPERATOR_LIST, this.addChatOPsToList);
-    this.addCommandListener(fchatServerCommandTypes.CHANNEL_OPERATOR_ADD, this.addChatOPToList);
-    this.addCommandListener(fchatServerCommandTypes.CHANNEL_OPERATOR_REMOVE, this.removeChatOPFromList);
+    this.addCommandListener(fchatServerCommandTypes.CHANNEL_OPERATOR_LIST, this.addChatOPsToList.bind(this));
+    this.addCommandListener(fchatServerCommandTypes.CHANNEL_OPERATOR_ADD, this.addChatOPToList.bind(this));
+    this.addCommandListener(fchatServerCommandTypes.CHANNEL_OPERATOR_REMOVE, this.removeChatOPFromList.bind(this));
 
     const ticket = await this.getTicket();
-    await this.startWebsockets(ticket);
+    void this.startWebsockets(ticket);
   }
 
-  public debugLog(...args: any[]): void {
+  public debugLog(...args: unknown[]): void {
     if (this.logLevel === 'debug') {
       console.log(...args);
     }
   }
 
   // TODO: Add a proper logging system
-  public infoLog(...args: any[]): void {
+  public infoLog(...args: unknown[]): void {
     if (this.logLevel === 'debug' || this.logLevel === 'info') {
       console.info(...args);
     }
   }
 
-  public alwaysLog(...args: any[]): void {
+  public alwaysLog(...args: unknown[]): void {
     console.info(...args);
   }
 
-  public errorLog(...args: any[]): void {
+  public errorLog(...args: unknown[]): void {
     if (this.logLevel === 'debug' || this.logLevel === 'info' || this.logLevel === 'error') {
       console.error(...args);
     }
   }
 
-  joinChannelsWhereInvited(args: SchemaForCommand<typeof fchatServerCommandTypes.CHANNEL_INVITE_RECEIVED>) {
+  joinChannelsWhereInvited(args: SchemaForCommand<typeof fchatServerCommandTypes.CHANNEL_INVITE_RECEIVED>): void {
     this.joinNewChannel(args.name);
   }
 
-  private async joinChannelOnConnect() {
+  private joinChannelOnConnect(): void {
     for (const room of Object.keys(this.channels)) {
       this.sendCommand(fchatClientCommandTypes.JOIN_CHANNEL, {
         channel: room.toLowerCase(),
@@ -251,17 +285,17 @@ export default class FChatLib {
     }
   }
 
-  setStatus(status: CharacterStatus, message = '') {
+  setStatus(status: CharacterStatus, message = ''): void {
     this.sendCommand(fchatClientCommandTypes.STATUS, {
-      status: status,
+      status,
       statusmsg: message,
     });
     this.infoLog('Set status to:', status, 'with message:', message);
   }
 
-  joinNewChannel(channel: string) {
+  joinNewChannel(channel: string): void {
     const sanitizedChannel = channel.toLowerCase();
-    if (this.channels[sanitizedChannel] == null) {
+    if (!this.channels[sanitizedChannel] || this.channels[sanitizedChannel].length === 0) {
       this.channels[sanitizedChannel] = [];
     }
     this.sendCommand(fchatClientCommandTypes.JOIN_CHANNEL, {
@@ -274,54 +308,44 @@ export default class FChatLib {
     this.updateRoomsConfig();
   }
 
-  private commandListener(args: SchemaForCommand<typeof fchatServerCommandTypes.MESSAGE_RECEIVED>) {
+  private commandListener(args: SchemaForCommand<typeof fchatServerCommandTypes.MESSAGE_RECEIVED>): void {
     const channel = args.channel.toLowerCase();
     if (typeof this.commandHandlers[channel] !== 'undefined') {
       try {
         this.commandHandlers[channel].processCommand(args);
       } catch (ex) {
         console.log(ex);
-        this.throwError(args, (ex as any).toString(), channel);
+        this.throwError(args, String(ex), channel);
       }
     }
   }
 
-  throwError(args: any, error: any, chan: string) {
+  throwError(args: unknown, error: unknown, chan: string): void {
     console.log(
-      'Error: Please message ' +
-        this.config.master +
-        ' with the following content:\n Error at ' +
-        new Date().toLocaleString() +
-        ' on command ' +
-        JSON.stringify(args) +
-        ' in channel ' +
-        chan +
-        ' with error: ' +
-        JSON.stringify(error)
+      `Error: Please message ${
+        this.config.master
+      } with the following content:\n Error at ${new Date().toLocaleString()} on command ${JSON.stringify(
+        args
+      )} in channel ${chan} with error: ${JSON.stringify(error)}`
     );
-    this.sendMessage(
-      'Error: Please message ' +
-        this.config.master +
-        ' with the following content:\n Error at ' +
-        new Date().toLocaleString() +
-        ' on command ' +
-        JSON.stringify(args) +
-        ' in channel ' +
-        chan +
-        ' with error: ' +
-        JSON.stringify(error),
+    void this.sendMessage(
+      `Error: Please message ${
+        this.config.master
+      } with the following content:\n Error at ${new Date().toLocaleString()} on command ${JSON.stringify(
+        args
+      )} in channel ${chan} with error: ${JSON.stringify(error)}`,
       chan
     );
   }
 
   //user management
-  private addUsersToList(args: SchemaForCommand<typeof fchatServerCommandTypes.INITIAL_CHANNEL_DATA>) {
+  private addUsersToList(args: SchemaForCommand<typeof fchatServerCommandTypes.INITIAL_CHANNEL_DATA>): void {
     const channel = args.channel.toLowerCase();
     if (typeof this.usersInChannel[channel] !== 'object') {
       this.usersInChannel[channel] = [];
     }
     for (const user of args.users) {
-      if (this.usersInChannel[channel].indexOf(user.identity) == -1) {
+      if (this.usersInChannel[channel].indexOf(user.identity) === -1) {
         this.usersInChannel[channel].push(user.identity);
       }
     }
@@ -332,47 +356,47 @@ export default class FChatLib {
     );
   }
 
-  private addSingleUserToList(args: SchemaForCommand<typeof fchatServerCommandTypes.CHARACTER_JOINED_CHANNEL>) {
+  private addSingleUserToList(args: SchemaForCommand<typeof fchatServerCommandTypes.CHARACTER_JOINED_CHANNEL>): void {
     const channel = args.channel.toLowerCase();
     if (typeof this.usersInChannel[channel] !== 'object') {
       this.usersInChannel[channel] = [];
     }
-    if (this.usersInChannel[channel].indexOf(args.character.identity) == -1) {
+    if (this.usersInChannel[channel].indexOf(args.character.identity) === -1) {
       this.usersInChannel[channel].push(args.character.identity);
     }
     this.debugLog('Added user to list:', channel, args.character.identity);
   }
 
-  private removeUserFromList(args: SchemaForCommand<typeof fchatServerCommandTypes.CHARACTER_LEFT_CHANNEL>) {
+  private removeUserFromList(args: SchemaForCommand<typeof fchatServerCommandTypes.CHARACTER_LEFT_CHANNEL>): void {
     const channel = args.channel.toLowerCase();
     if (typeof this.usersInChannel[channel] !== 'object') {
       return;
     }
-    if (this.usersInChannel[channel].indexOf(args.character) != -1) {
+    if (this.usersInChannel[channel].indexOf(args.character) !== -1) {
       this.usersInChannel[channel].splice(this.usersInChannel[channel].indexOf(args.character), 1);
     }
     this.infoLog('Removed user from list:', channel, args.character);
   }
 
-  private removeUserFromChannels(args: SchemaForCommand<typeof fchatServerCommandTypes.CHARACTER_WENT_OFFLINE>) {
+  private removeUserFromChannels(args: SchemaForCommand<typeof fchatServerCommandTypes.CHARACTER_WENT_OFFLINE>): void {
     //remove if offline
-    for (let i in this.usersInChannel) {
+    for (const i in this.usersInChannel) {
       if (typeof this.usersInChannel[i] !== 'object') {
         continue;
       }
-      if (this.usersInChannel[i].indexOf(args.character) != -1) {
+      if (this.usersInChannel[i].indexOf(args.character) !== -1) {
         this.usersInChannel[i].splice(this.usersInChannel[i].indexOf(args.character), 1);
       }
     }
     this.debugLog('Removed user from all channels:', args.character);
   }
 
-  private saveChannelNames(args: SchemaForCommand<typeof fchatServerCommandTypes.CHARACTER_JOINED_CHANNEL>) {
+  private saveChannelNames(args: SchemaForCommand<typeof fchatServerCommandTypes.CHARACTER_JOINED_CHANNEL>): void {
     const channel = args.channel.toLowerCase();
     this.channelNames[channel] = args.title;
   }
 
-  private addUserListToGlobalState(args: SchemaForCommand<typeof fchatServerCommandTypes.CHARACTER_ONLINE_LIST>) {
+  private addUserListToGlobalState(args: SchemaForCommand<typeof fchatServerCommandTypes.CHARACTER_ONLINE_LIST>): void {
     args.characters.forEach((character) => {
       const name = character[0];
       this.users[name] = character;
@@ -389,7 +413,7 @@ export default class FChatLib {
     gender?: CharacterGender;
     status?: CharacterStatus;
     statusmsg?: string;
-  }) {
+  }): void {
     let character = '';
     let gender = '';
     let status = '';
@@ -414,21 +438,19 @@ export default class FChatLib {
       statusmsg = args.statusmsg;
     }
 
-    if (character != '') {
-      if (this.users[character] === undefined) {
-        this.users[character] = [character, 'None', 'online', ''];
-      }
+    if (character !== '') {
+      this.users[character] ??= [character, 'None', 'online', ''];
       const user = this.users[character]!;
 
-      if (gender != '') {
+      if (gender !== '') {
         user[1] = gender as CharacterGender;
       }
 
-      if (status != '') {
+      if (status !== '') {
         user[2] = status as CharacterStatus;
       }
 
-      if (statusmsg != '') {
+      if (statusmsg !== '') {
         user[3] = statusmsg;
       }
 
@@ -437,42 +459,42 @@ export default class FChatLib {
   }
 
   //permissions
-  private addChatOPsToList(args: SchemaForCommand<typeof fchatServerCommandTypes.CHANNEL_OPERATOR_LIST>) {
+  private addChatOPsToList(args: SchemaForCommand<typeof fchatServerCommandTypes.CHANNEL_OPERATOR_LIST>): void {
     const channel = args.channel.toLowerCase();
     if (typeof this.chatOPsInChannel[channel] !== 'object') {
       this.chatOPsInChannel[channel] = [];
     }
     for (const op of args.oplist) {
-      if (op && this.chatOPsInChannel[channel].indexOf(op) == -1) {
+      if (op && this.chatOPsInChannel[channel].indexOf(op) === -1) {
         this.chatOPsInChannel[channel].push(op);
         this.infoLog('Added chatOP to list:', channel, op);
       }
     }
   }
 
-  private addChatOPToList(args: SchemaForCommand<typeof fchatServerCommandTypes.CHANNEL_OPERATOR_ADD>) {
+  private addChatOPToList(args: SchemaForCommand<typeof fchatServerCommandTypes.CHANNEL_OPERATOR_ADD>): void {
     const channel = args.channel.toLowerCase();
     if (typeof this.chatOPsInChannel[channel] !== 'object') {
       this.chatOPsInChannel[channel] = [];
     }
-    if (this.chatOPsInChannel[channel].indexOf(args.character) == -1) {
+    if (this.chatOPsInChannel[channel].indexOf(args.character) === -1) {
       this.chatOPsInChannel[channel].push(args.character);
       this.infoLog('Added chatOP to list:', channel, args.character);
     }
   }
 
-  private removeChatOPFromList(args: SchemaForCommand<typeof fchatServerCommandTypes.CHANNEL_OPERATOR_REMOVE>) {
+  private removeChatOPFromList(args: SchemaForCommand<typeof fchatServerCommandTypes.CHANNEL_OPERATOR_REMOVE>): void {
     const channel = args.channel.toLowerCase();
     if (typeof this.chatOPsInChannel[channel] !== 'object') {
       return;
     }
-    if (this.chatOPsInChannel[channel].indexOf(args.character) != -1) {
+    if (this.chatOPsInChannel[channel].indexOf(args.character) !== -1) {
       this.chatOPsInChannel[channel].splice(this.chatOPsInChannel[channel].indexOf(args.character), 1);
       this.infoLog('Removed chatOP from list:', channel, args.character);
     }
   }
 
-  private variableChangeHandler(args: SchemaForCommand<typeof fchatServerCommandTypes.SERVER_VARIABLES>) {
+  private variableChangeHandler(args: SchemaForCommand<typeof fchatServerCommandTypes.SERVER_VARIABLES>): void {
     switch (args.variable) {
       case 'msg_flood':
         this.infoLog('Flood limit changed to:', args.value);
@@ -496,14 +518,16 @@ export default class FChatLib {
         },
         (err, httpResponse, body) => {
           if (err) {
+            // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
             reject(err);
           }
-          const response = JSON.parse(body);
-          const ticket = response.ticket as string;
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+          const response = JSON.parse(body) as { ticket: string };
+          const ticket = response.ticket;
           const json: Ticket = {
             method: 'ticket',
             account: this.config.username,
-            ticket: ticket,
+            ticket,
             character: this.config.character,
             cname: this.config.cname,
             cversion: this.config.cversion,
@@ -532,7 +556,7 @@ export default class FChatLib {
       return false;
     }
 
-    const message = command + ' ' + JSON.stringify(parsed.data);
+    const message = `${command} ${JSON.stringify(parsed.data)}`;
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
       this.errorLog('Websocket not connected, skipping message |', message);
       return false;
@@ -543,37 +567,37 @@ export default class FChatLib {
     return true;
   }
 
-  sendMessage(message: string, channel: string): void {
-    this.sendData(fchatClientCommandTypes.MESSAGE, { channel, message });
+  async sendMessage(message: string, channel: string): Promise<void> {
+    return this.sendData(fchatClientCommandTypes.MESSAGE, { channel, message });
   }
 
-  sendPrivMessage(message: string, character: string): void {
-    this.sendData(fchatClientCommandTypes.PRIVATE_MESSAGE, {
+  async sendPrivMessage(message: string, character: string): Promise<void> {
+    return this.sendData(fchatClientCommandTypes.PRIVATE_MESSAGE, {
       message,
       recipient: character,
     });
   }
 
-  getProfileData(character: string): void {
-    this.sendData(fchatClientCommandTypes.PROFILE_REQUEST, { character });
+  async getProfileData(character: string): Promise<void> {
+    return this.sendData(fchatClientCommandTypes.PROFILE_REQUEST, { character });
   }
 
-  setIsTyping() {
-    this.sendData(fchatClientCommandTypes.TYPING_STATUS, {
+  async setIsTyping(): Promise<void> {
+    return this.sendData(fchatClientCommandTypes.TYPING_STATUS, {
       character: this.config.character,
       status: 'typing',
     });
   }
 
-  setIsTypingPaused() {
-    this.sendData(fchatClientCommandTypes.TYPING_STATUS, {
+  async setIsTypingPaused(): Promise<void> {
+    return this.sendData(fchatClientCommandTypes.TYPING_STATUS, {
       character: this.config.character,
       status: 'paused',
     });
   }
 
-  setIsNotTyping() {
-    this.sendData(fchatClientCommandTypes.TYPING_STATUS, {
+  async setIsNotTyping(): Promise<void> {
+    return this.sendData(fchatClientCommandTypes.TYPING_STATUS, {
       character: this.config.character,
       status: 'clear',
     });
@@ -581,7 +605,7 @@ export default class FChatLib {
 
   getUserList(channel: string): string[] {
     const sanitizedChannel = channel.toLowerCase();
-    if (this.usersInChannel[sanitizedChannel] == undefined) {
+    if (this.usersInChannel[sanitizedChannel] === undefined) {
       return [];
     }
     return this.usersInChannel[sanitizedChannel];
@@ -603,11 +627,11 @@ export default class FChatLib {
 
   isUserChatOP(username: string, channel: string): boolean {
     const sanitizedChannel = channel.toLowerCase();
-    return this.getChatOPList(sanitizedChannel).indexOf(username) != -1 || username == this.config.master;
+    return this.getChatOPList(sanitizedChannel).indexOf(username) !== -1 || username === this.config.master;
   }
 
   isUserMaster(username: string): boolean {
-    return username.toLowerCase() == this.config.master.toLowerCase();
+    return username.toLowerCase() === this.config.master.toLowerCase();
   }
 
   disconnect(): void {
@@ -618,22 +642,24 @@ export default class FChatLib {
 
   restart(): void {
     this.disconnect();
-    setTimeout(this.connect, 2000);
+    setTimeout(() => {
+      void this.connect();
+    }, 2000);
   }
 
   softRestart(channel: string): void {
     this.commandHandlers[channel] = new CommandHandler(this, channel);
   }
 
-  roll(channel: string, customDice: string): void {
-    this.sendData(fchatClientCommandTypes.ROLL_DICE, {
+  async roll(channel: string, customDice: string): Promise<void> {
+    return this.sendData(fchatClientCommandTypes.ROLL_DICE, {
       channel,
       dice: customDice || '1d10',
     });
   }
 
-  spinBottle(channel: string): void {
-    this.sendData(fchatClientCommandTypes.ROLL_DICE, {
+  async spinBottle(channel: string): Promise<void> {
+    return this.sendData(fchatClientCommandTypes.ROLL_DICE, {
       channel,
       dice: 'bottle',
     });
@@ -644,21 +670,14 @@ export default class FChatLib {
       mkdirSync(this.saveFolder);
     }
 
-    let ignoredKeys = ['instanciatedPlugin'];
-    const cache: unknown[] = [];
-    const tempJson = JSON.stringify(this.channels, function (key, value) {
-      if (typeof value === 'object' && value !== null) {
-        if (cache.indexOf(value) !== -1 || ignoredKeys.indexOf(key) !== -1) {
-          // Circular reference found, discard key
-          return;
-        }
-        // Store value in our collection
-        cache.push(value);
-      }
-      return value;
-    });
+    const savePluginMap: SavePluginMap = {};
+    for (const channel of Object.entries(this.channels)) {
+      savePluginMap[channel[0]] = channel[1].map((plugin) => ({
+        name: plugin.name,
+      }));
+    }
 
-    writeFileSync(this.saveFolder + this.saveFileName, tempJson);
+    writeFileSync(this.saveFolder + this.saveFileName, JSON.stringify(savePluginMap));
   }
 
   private startWebsockets(idnObject: Ticket): void {
@@ -689,15 +708,17 @@ export default class FChatLib {
     this.ws.on('error', (error) => {
       this.errorLog('Websocket error:', error);
       setTimeout(() => {
-        this.connect();
+        void this.connect();
       }, 4000);
     });
 
+    // TODO: Decide on if we need a message queue
+    // eslint-disable-next-line @typescript-eslint/no-misused-promises
     this.ws.on('message', async (data: Buffer) => {
       let command: string;
       let argumentString: string;
 
-      if (data != null) {
+      if (data !== null) {
         const dataString = data.toString('utf-8');
         this.debugLog('fchat<< ', dataString);
 
@@ -729,7 +750,7 @@ export default class FChatLib {
           }
 
           // Safely handle empty arguments
-          const parsed = Boolean(argument)
+          const parsed = argument
             ? commandObject.schema.safeParse(argument)
             : { success: true, data: undefined, error: undefined };
 
@@ -758,20 +779,28 @@ export default class FChatLib {
 
           // Optionally notify about the error, do not notify about errors from the ERROR command which would result in a loop
           if (this.config.master && command !== fchatServerCommandTypes.ERROR) {
-            this.sendPrivMessage(`Error processing message: ${errMessage}`, this.config.master);
+            void this.sendPrivMessage(`Error processing message: ${errMessage}`, this.config.master);
           }
         }
       }
     });
   }
 
-  private splitOnce(str: string, delim: string) {
-    let components = str.split(delim);
-    let result = [components.shift()];
+  private splitOnce(str: string, delim: string): string[] {
+    const components = str.split(delim);
+    const result = [components.shift() ?? ''];
     if (components.length) {
       result.push(components.join(delim));
     }
     return result;
+  }
+
+  public sendParseMessage(commandName: string, zodError: z.ZodError, channel: string): Promise<void> {
+    const errorMessage = zodError.issues.map((issue) => `-> ${issue.message || issue.code}`).join('\n');
+    return this.sendMessage(
+      `Invalid Arguments for !${bbcBold(commandName)}. See the following issues for more information:\n${errorMessage}`,
+      channel
+    );
   }
 }
 
@@ -782,3 +811,4 @@ export * from './Interfaces/IMsgEvent';
 export * from './CommandHandler';
 export * from './CommandHandlerHelper';
 export * from './FchatServerCommands';
+export * from './bbCode';

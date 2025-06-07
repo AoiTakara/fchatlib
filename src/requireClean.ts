@@ -35,7 +35,7 @@ export default class RequireClean {
       if (typeof name !== 'string') {
         throw new TypeError('requireClean.clean Expects a moduleId String');
       }
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/unbound-method
+      // eslint-disable-next-line @typescript-eslint/unbound-method
       return this.searchCache(name, callerPath(), deep, this.deleteMod);
     }
   };

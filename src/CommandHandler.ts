@@ -1,9 +1,9 @@
-import FChatLib from './FChatLib';
-import { CommandHandlerHelper } from './CommandHandlerHelper';
-import { IPlugin } from './Interfaces/IPlugin';
-import { fchatServerCommandTypes, SchemaForCommand } from './FchatServerCommands';
 import { z } from 'zod';
+import { CommandHandlerHelper } from './CommandHandlerHelper';
 import { statusSchema } from './commonSchemas';
+import FChatLib from './FChatLib';
+import { fchatServerCommandTypes, SchemaForCommand } from './FchatServerCommands';
+import { IPlugin } from './Interfaces/IPlugin';
 
 const gjoinchannelArgs = z.string().describe('The channel to join');
 export const gstatusArgs = z
@@ -14,7 +14,7 @@ export const gstatusArgs = z
     const [status, message] = val.split(' ');
     const parsedStatus = statusSchema.safeParse(status);
     if (!parsedStatus.success) {
-      throw new Error('Invalid status: ' + parsedStatus.error.message);
+      throw new Error(`Invalid status: ${parsedStatus.error.message}`);
     }
 
     return { status: parsedStatus.data, message };
@@ -23,7 +23,7 @@ export const gstatusArgs = z
 const loadpluginArgs = z
   .string()
   .describe('The plugin to load')
-  .regex(/^[a-zA-Z0-9_-]+$/)
+  .regex(/^[a-zA-Z0-9_-]+$/, 'Invalid plugin name')
   .min(1, 'Plugin name is required')
   .max(255, 'Plugin name is too long');
 
@@ -50,7 +50,7 @@ export default class CommandHandler {
 
   processCommand(data: SchemaForCommand<typeof fchatServerCommandTypes.MESSAGE_RECEIVED>) {
     if (data && data.message && data.message.length > 2 && data.message[0] == '!') {
-      let opts = {
+      const opts = {
         command: String(data.message.split(' ')[0]).replace('!', '').trim(),
         argument: data.message.substring(String(data.message.split(' ')[0]).length).trim(),
       };
@@ -58,8 +58,8 @@ export default class CommandHandler {
       if (opts.command != 'processCommand') {
         let found = false;
 
-        for (let plugin of this.pluginsLoaded) {
-          for (let command of this.commandHandlerHelper.internalGetAllFuncs(plugin.instanciatedPlugin)) {
+        for (const plugin of this.pluginsLoaded) {
+          for (const command of this.commandHandlerHelper.internalGetAllFuncs(plugin.instanciatedPlugin)) {
             if (command === opts.command) {
               plugin.instanciatedPlugin[opts.command](opts.argument, data);
               found = true;
@@ -77,41 +77,41 @@ export default class CommandHandler {
 
   help(_args: any, data: SchemaForCommand<typeof fchatServerCommandTypes.MESSAGE_RECEIVED>) {
     let commandsHelp = '';
-    let cmdArrSorted = [];
-    for (let method of this.commandHandlerHelper.internalGetAllFuncs(this)) {
-      if (method != 'processCommand' && cmdArrSorted.indexOf(method) == -1) {
+    const cmdArrSorted = [];
+    for (const method of this.commandHandlerHelper.internalGetAllFuncs(this)) {
+      if (method !== 'processCommand' && cmdArrSorted.indexOf(method) === -1) {
         cmdArrSorted.push(method);
       }
     }
-    for (let plugin of this.pluginsLoaded) {
-      for (let method of this.commandHandlerHelper.internalGetAllFuncs(plugin.instanciatedPlugin)) {
-        if (method != 'processCommand' && cmdArrSorted.indexOf(method) == -1) {
+    for (const plugin of this.pluginsLoaded) {
+      for (const method of this.commandHandlerHelper.internalGetAllFuncs(plugin.instanciatedPlugin)) {
+        if (method !== 'processCommand' && cmdArrSorted.indexOf(method) === -1) {
           cmdArrSorted.push(method);
         }
       }
     }
     cmdArrSorted.sort();
-    for (let i in cmdArrSorted) {
-      commandsHelp += ', !' + cmdArrSorted[i];
+    for (const command of cmdArrSorted) {
+      commandsHelp += `, !${command}`;
     }
     commandsHelp = commandsHelp.substr(1);
-    this.fChatLibInstance.sendMessage('Here are the available commands:' + commandsHelp, data.channel);
+    return this.fChatLibInstance.sendMessage(`Here are the available commands:${commandsHelp}`, data.channel);
   }
 
   flood(_args: unknown, data: SchemaForCommand<typeof fchatServerCommandTypes.MESSAGE_RECEIVED>) {
     if (this.fChatLibInstance.isUserChatOP(data.character, data.channel)) {
-      this.fChatLibInstance.sendMessage('Current flood limit set: ' + this.fChatLibInstance.floodLimit, data.channel);
+      return this.fChatLibInstance.sendMessage(`Current flood limit set: ${this.fChatLibInstance.floodLimit}`, data.channel);
     } else {
-      this.fChatLibInstance.sendMessage("You don't have sufficient rights.", data.channel);
+      return this.fChatLibInstance.sendMessage("You don't have sufficient rights.", data.channel);
     }
   }
 
   reloadplugins(_args: unknown, data: SchemaForCommand<typeof fchatServerCommandTypes.MESSAGE_RECEIVED>) {
     if (this.fChatLibInstance.isUserChatOP(data.character, data.channel)) {
       this.fChatLibInstance.softRestart(data.channel);
-      this.fChatLibInstance.sendMessage('All plugins have been reloaded!', data.channel);
+      return this.fChatLibInstance.sendMessage('All plugins have been reloaded!', data.channel);
     } else {
-      this.fChatLibInstance.sendMessage("You don't have sufficient rights.", data.channel);
+      return this.fChatLibInstance.sendMessage("You don't have sufficient rights.", data.channel);
     }
   }
 
@@ -120,17 +120,18 @@ export default class CommandHandler {
       for (const channel of Object.keys(this.fChatLibInstance.channels)) {
         this.fChatLibInstance.softRestart(channel);
       }
-      this.fChatLibInstance.sendMessage('All plugins have been reloaded!', data.channel);
+      return this.fChatLibInstance.sendMessage('All plugins have been reloaded!', data.channel);
     } else {
-      this.fChatLibInstance.sendMessage("You don't have sufficient rights.", data.channel);
+      return this.fChatLibInstance.sendMessage("You don't have sufficient rights.", data.channel);
     }
   }
 
   grestart(_args: unknown, data: SchemaForCommand<typeof fchatServerCommandTypes.MESSAGE_RECEIVED>) {
     if (this.fChatLibInstance.isUserMaster(data.character)) {
       this.fChatLibInstance.restart();
+      return;
     } else {
-      this.fChatLibInstance.sendMessage("You don't have sufficient rights.", data.channel);
+      return this.fChatLibInstance.sendMessage("You don't have sufficient rights.", data.channel);
     }
   }
 
@@ -138,10 +139,11 @@ export default class CommandHandler {
     if (this.fChatLibInstance.isUserMaster(data.character)) {
       this.fChatLibInstance.removeCommandListener(
         fchatServerCommandTypes.CHANNEL_INVITE_RECEIVED,
-        this.fChatLibInstance.joinChannelsWhereInvited
+        this.fChatLibInstance.joinChannelsWhereInvited.bind(this.fChatLibInstance)
       );
+      return;
     } else {
-      this.fChatLibInstance.sendMessage("You don't have sufficient rights.", data.channel);
+      return this.fChatLibInstance.sendMessage("You don't have sufficient rights.", data.channel);
     }
   }
 
@@ -149,14 +151,15 @@ export default class CommandHandler {
     if (this.fChatLibInstance.isUserMaster(data.character)) {
       this.fChatLibInstance.removeCommandListener(
         fchatServerCommandTypes.CHANNEL_INVITE_RECEIVED,
-        this.fChatLibInstance.joinChannelsWhereInvited
+        this.fChatLibInstance.joinChannelsWhereInvited.bind(this.fChatLibInstance)
       );
       this.fChatLibInstance.addCommandListener(
         fchatServerCommandTypes.CHANNEL_INVITE_RECEIVED,
-        this.fChatLibInstance.joinChannelsWhereInvited
+        this.fChatLibInstance.joinChannelsWhereInvited.bind(this.fChatLibInstance)
       );
+      return;
     } else {
-      this.fChatLibInstance.sendMessage("You don't have sufficient rights.", data.channel);
+      return this.fChatLibInstance.sendMessage("You don't have sufficient rights.", data.channel);
     }
   }
 
@@ -164,12 +167,12 @@ export default class CommandHandler {
     const parsedArgs = gjoinchannelArgs.safeParse(args);
     if (parsedArgs.success) {
       if (this.fChatLibInstance.isUserMaster(data.character)) {
-        this.fChatLibInstance.joinNewChannel(parsedArgs.data);
+        return this.fChatLibInstance.joinNewChannel(parsedArgs.data);
       } else {
-        this.fChatLibInstance.sendMessage("You don't have sufficient rights.", data.channel);
+        return this.fChatLibInstance.sendMessage("You don't have sufficient rights.", data.channel);
       }
     } else {
-      this.fChatLibInstance.sendMessage('Invalid channel name.', data.channel);
+      return this.fChatLibInstance.sendParseMessage('gjoinchannel', parsedArgs.error, data.channel);
     }
   }
 
@@ -177,53 +180,52 @@ export default class CommandHandler {
     const parsedArgs = gstatusArgs.safeParse(args);
     if (parsedArgs.success) {
       if (this.fChatLibInstance.isUserMaster(data.character)) {
-        this.fChatLibInstance.setStatus(parsedArgs.data.status, parsedArgs.data.message);
+        return this.fChatLibInstance.setStatus(parsedArgs.data.status, parsedArgs.data.message);
       } else {
-        this.fChatLibInstance.sendMessage("You don't have sufficient rights.", data.channel);
+        return this.fChatLibInstance.sendMessage("You don't have sufficient rights.", data.channel);
       }
     } else {
-      this.fChatLibInstance.sendMessage('Invalid status: ' + parsedArgs.error.message, data.channel);
+      return this.fChatLibInstance.sendParseMessage(`gstatus`, parsedArgs.error, data.channel);
     }
   }
 
   list(_args: unknown, data: SchemaForCommand<typeof fchatServerCommandTypes.MESSAGE_RECEIVED>) {
     const userList = this.fChatLibInstance.getUserList(data.channel);
     const users = userList.join(', ').trim();
-    this.fChatLibInstance.sendMessage('Here are the current characters in the room: ' + users, data.channel);
+    return this.fChatLibInstance.sendMessage(`Here are the current characters in the room: ${users}`, data.channel);
   }
 
   listops(_args: unknown, data: SchemaForCommand<typeof fchatServerCommandTypes.MESSAGE_RECEIVED>) {
     const chatOPList = this.fChatLibInstance.getChatOPList(data.channel);
     const ops = chatOPList.join(', ').trim();
-    this.fChatLibInstance.sendMessage('Here are the current operators in the room: ' + ops, data.channel);
+    return this.fChatLibInstance.sendMessage(`Here are the current operators in the room: ${ops}`, data.channel);
   }
 
   loadplugin(args: unknown, data: SchemaForCommand<typeof fchatServerCommandTypes.MESSAGE_RECEIVED>) {
     const parsedArgs = loadpluginArgs.safeParse(args);
     if (this.fChatLibInstance.isUserMaster(data.character)) {
       if (parsedArgs.success) {
-        this.commandHandlerHelper.internalLoadPlugin(parsedArgs.data, this);
+        return this.commandHandlerHelper.internalLoadPlugin(parsedArgs.data, this);
       } else {
-        this.fChatLibInstance.sendMessage('Invalid plugin name: ' + parsedArgs.error.message, data.channel);
+        return this.fChatLibInstance.sendParseMessage(`loadplugin`, parsedArgs.error, data.channel);
       }
     } else {
-      this.fChatLibInstance.sendMessage("You don't have sufficient rights.", data.channel);
+      return this.fChatLibInstance.sendMessage("You don't have sufficient rights.", data.channel);
     }
   }
 
   loadedplugins(_args: unknown, data: SchemaForCommand<typeof fchatServerCommandTypes.MESSAGE_RECEIVED>) {
     if (this.fChatLibInstance.isUserChatOP(data.character, data.channel)) {
-      this.fChatLibInstance.sendMessage(
-        'The following plugins are loaded: ' +
-          this.pluginsLoaded
-            .map((x) => {
-              return x.name;
-            })
-            .join(', '),
+      return this.fChatLibInstance.sendMessage(
+        `The following plugins are loaded: ${this.pluginsLoaded
+          .map((x) => {
+            return x.name;
+          })
+          .join(', ')}`,
         data.channel
       );
     } else {
-      this.fChatLibInstance.sendMessage("You don't have sufficient rights.", data.channel);
+      return this.fChatLibInstance.sendMessage("You don't have sufficient rights.", data.channel);
     }
   }
 
@@ -231,26 +233,26 @@ export default class CommandHandler {
     const parsedArgs = loadpluginArgs.safeParse(args);
     if (this.fChatLibInstance.isUserMaster(data.character)) {
       if (parsedArgs.success) {
-        this.commandHandlerHelper.internalUnloadPlugin(parsedArgs.data);
+        return this.commandHandlerHelper.internalUnloadPlugin(parsedArgs.data);
       } else {
-        this.fChatLibInstance.sendMessage('Invalid plugin name: ' + parsedArgs.error.message, data.channel);
+        return this.fChatLibInstance.sendParseMessage(`unloadplugin`, parsedArgs.error, data.channel);
       }
     } else {
-      this.fChatLibInstance.sendMessage("You don't have sufficient rights.", data.channel);
+      return this.fChatLibInstance.sendMessage("You don't have sufficient rights.", data.channel);
     }
   }
 
   updateplugins(_args: unknown, data: SchemaForCommand<typeof fchatServerCommandTypes.MESSAGE_RECEIVED>) {
     if (this.fChatLibInstance.isUserChatOP(data.character, data.channel)) {
-      this.commandHandlerHelper.internalUpdatePlugins();
+      return this.commandHandlerHelper.internalUpdatePlugins();
     } else {
-      this.fChatLibInstance.sendMessage("You don't have sufficient rights.", data.channel);
+      return this.fChatLibInstance.sendMessage("You don't have sufficient rights.", data.channel);
     }
   }
 
   uptime(_args: unknown, data: SchemaForCommand<typeof fchatServerCommandTypes.MESSAGE_RECEIVED>) {
-    this.fChatLibInstance.sendMessage(
-      'The bot has been running for ' + this.commandHandlerHelper.internalGetUptime(),
+    return this.fChatLibInstance.sendMessage(
+      `The bot has been running for ${this.commandHandlerHelper.internalGetUptime()}`,
       data.channel
     );
   }
@@ -258,10 +260,10 @@ export default class CommandHandler {
   flushpluginslist(_args: unknown, data: SchemaForCommand<typeof fchatServerCommandTypes.MESSAGE_RECEIVED>) {
     if (this.fChatLibInstance.isUserChatOP(data.character, data.channel)) {
       this.fChatLibInstance.channels[data.channel] = [];
-      this.fChatLibInstance.sendMessage('Removed all plugins, the bot will restart.', data.channel);
-      this.fChatLibInstance.softRestart(data.channel);
+      void this.fChatLibInstance.sendMessage('Removed all plugins, the bot will restart.', data.channel);
+      return this.fChatLibInstance.softRestart(data.channel);
     } else {
-      this.fChatLibInstance.sendMessage("You don't have sufficient rights.", data.channel);
+      return this.fChatLibInstance.sendMessage("You don't have sufficient rights.", data.channel);
     }
   }
 }

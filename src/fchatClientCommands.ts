@@ -8,7 +8,6 @@ import {
   channelSchema,
   roomModeSchema,
   statusSchema,
-  CharacterStatus,
   diceOrBottleSchema,
 } from './commonSchemas';
 
