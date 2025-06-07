@@ -7,6 +7,12 @@ import CommandHandler from './CommandHandler';
 import { IPlugin } from './Interfaces/IPlugin';
 import RequireClean from './requireClean';
 
+const defaultIgnoreProperties = ['constructor', 'processCommand', 'ignoreProperties'];
+
+/**
+ * If a property is in the defaultIgnoreProperties array, it will not be included in the list of commands.
+ * A plugin can include additional properties to ignore by setting the ignoreProperties property.
+ */
 export class CommandHandlerHelper {
   commandHandler: CommandHandler;
 
@@ -171,18 +177,19 @@ export class CommandHandlerHelper {
   internalGetAllFuncs(obj: any) {
     let props: string[] = [];
 
+    const propertyNames = Object.getOwnPropertyNames(obj).concat(
+      Object.getOwnPropertySymbols(obj).map((s) => s.toString())
+    );
+
     do {
-      const l = Object.getOwnPropertyNames(obj)
-        .concat(Object.getOwnPropertySymbols(obj).map((s) => s.toString()))
-        .sort()
-        .filter(
-          (p, i, arr) =>
-            typeof obj[p] === 'function' && //only the methods
-            p !== 'constructor' && //not the constructor
-            p !== 'processCommand' && //not the command processor
-            (i === 0 || p !== arr[i - 1]) && //not overriding in this prototype
-            props.indexOf(p) === -1 //not overridden in a child
-        );
+      const ignoreProperties = [...(obj.ignoreProperties ?? []), ...defaultIgnoreProperties];
+      const l = propertyNames.sort().filter(
+        (p, i, arr) =>
+          typeof obj[p] === 'function' && //only the methods
+          !ignoreProperties.includes(p) &&
+          (i === 0 || p !== arr[i - 1]) && //not overriding in this prototype
+          props.indexOf(p) === -1 //not overridden in a child
+      );
       props = props.concat(l);
     } while (
       (obj = Object.getPrototypeOf(obj)) && //walk-up the prototype chain
