@@ -29,6 +29,11 @@ const loadpluginArgs = z
   .min(1, 'Plugin name is required')
   .max(255, 'Plugin name is too long');
 
+export const floodLimitArgs = z
+  .number()
+  .describe('!floodlimit <seconds>')
+  .min(1, 'Flood limit must be at least 1 second');
+
 export default class CommandHandler {
   channelName: string = '';
   privCharName: string = '';
@@ -101,9 +106,14 @@ export default class CommandHandler {
   }
 
   flood(_args: unknown, data: SchemaForCommand<typeof fchatServerCommandTypes.MESSAGE_RECEIVED>) {
+    const parsedArgs = floodLimitArgs.safeParse(_args);
+    if (!parsedArgs.success) {
+      return this.fChatLibInstance.sendParseMessage(`flood`, floodLimitArgs, parsedArgs.error, data.channel);
+    }
     if (this.fChatLibInstance.isUserChatOP(data.character, data.channel)) {
+      this.fChatLibInstance.setFloodLimit(parsedArgs.data);
       return this.fChatLibInstance.sendMessage(
-        `Current flood limit set: ${this.fChatLibInstance.floodLimit}`,
+        `Current flood limit set: ${this.fChatLibInstance.floodLimitSeconds}`,
         data.channel
       );
     } else {

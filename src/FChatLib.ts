@@ -119,27 +119,25 @@ export default class FChatLib {
 
   private pingInterval: Timeout | null = null;
 
-  floodLimit: number = 2.0;
-  private lastTimeCommandReceived: number = Number.MAX_VALUE;
-  private commandsInQueue: number = 0;
+  /** The number of seconds to wait between messages. */
+  floodLimitSeconds: number = 2.0;
+  private lastTimeCommandReceivedSeconds: number = Number.MAX_VALUE;
+  private commandsInQueue: number = -1;
 
   private timeout(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
-  async sendData<T extends FChatClientCommandType>(command: T, content?: ClientCommandSchema<T>): Promise<void> {
+  /** Sends a command to the server, but waits for the flood limit in seconds before sending.. */
+  sendData<T extends FChatClientCommandType>(command: T, content?: ClientCommandSchema<T>): void {
     this.commandsInQueue++;
-    const currentTime = parseInt(process.uptime().toString(), 10);
 
-    if (currentTime - this.lastTimeCommandReceived < this.floodLimit) {
-      const timeElapsedSinceLastCommand = currentTime - this.lastTimeCommandReceived;
-      const timeToWait = this.commandsInQueue * this.floodLimit - timeElapsedSinceLastCommand;
-      await this.timeout(timeToWait * 1000);
-    }
-
-    this.lastTimeCommandReceived = parseInt(process.uptime().toString(), 10);
-    this.commandsInQueue--;
-    this.sendCommand(command, content);
+    const timeToWaitSeconds = Math.max(0, this.commandsInQueue) * this.floodLimitSeconds;
+    setTimeout(() => {
+      this.commandsInQueue--;
+      this.sendCommand(command, content);
+      this.lastTimeCommandReceivedSeconds = Math.floor(process.uptime());
+    }, timeToWaitSeconds * 1000);
   }
 
   constructor(configuration: IConfig) {
@@ -182,8 +180,9 @@ export default class FChatLib {
     }
   }
 
+  /** Update the flood limit with a minimum of 1 second. */
   setFloodLimit(delay: number): void {
-    this.floodLimit = delay;
+    this.floodLimitSeconds = Math.min(1, delay);
   }
 
   async connect(): Promise<void> {
@@ -192,6 +191,7 @@ export default class FChatLib {
 
     this.generateCommandHandlers();
     this.addCommandListener(fchatServerCommandTypes.MESSAGE_RECEIVED, this.commandListener.bind(this)); // basic commands + plugins loader, one instance for one bot
+    // Received once we are fully connected to the server. Use it for triggering events.
     this.addCommandListener(fchatServerCommandTypes.CONNECTED, this.joinChannelOnConnect.bind(this));
 
     if (this.config.autoJoinOnInvite) {
@@ -479,7 +479,7 @@ export default class FChatLib {
     switch (args.variable) {
       case 'msg_flood':
         this.infoLog('Flood limit changed to:', args.value);
-        this.floodLimit = Number(args.value);
+        this.setFloodLimit(Number(args.value));
         break;
       default:
         break;
@@ -548,37 +548,37 @@ export default class FChatLib {
     return true;
   }
 
-  async sendMessage(message: string, channel: string): Promise<void> {
-    return this.sendData(fchatClientCommandTypes.MESSAGE, { channel, message });
+  sendMessage(message: string, channel: string): void {
+    this.sendData(fchatClientCommandTypes.MESSAGE, { channel, message });
   }
 
-  async sendPrivMessage(message: string, character: string): Promise<void> {
-    return this.sendData(fchatClientCommandTypes.PRIVATE_MESSAGE, {
+  sendPrivMessage(message: string, character: string): void {
+    this.sendData(fchatClientCommandTypes.PRIVATE_MESSAGE, {
       message,
       recipient: character,
     });
   }
 
-  async getProfileData(character: string): Promise<void> {
-    return this.sendData(fchatClientCommandTypes.PROFILE_REQUEST, { character });
+  getProfileData(character: string): void {
+    this.sendData(fchatClientCommandTypes.PROFILE_REQUEST, { character });
   }
 
-  async setIsTyping(): Promise<void> {
-    return this.sendData(fchatClientCommandTypes.TYPING_STATUS, {
+  setIsTyping(): void {
+    this.sendData(fchatClientCommandTypes.TYPING_STATUS, {
       character: this.config.character,
       status: 'typing',
     });
   }
 
-  async setIsTypingPaused(): Promise<void> {
-    return this.sendData(fchatClientCommandTypes.TYPING_STATUS, {
+  setIsTypingPaused(): void {
+    this.sendData(fchatClientCommandTypes.TYPING_STATUS, {
       character: this.config.character,
       status: 'paused',
     });
   }
 
-  async setIsNotTyping(): Promise<void> {
-    return this.sendData(fchatClientCommandTypes.TYPING_STATUS, {
+  setIsNotTyping(): void {
+    this.sendData(fchatClientCommandTypes.TYPING_STATUS, {
       character: this.config.character,
       status: 'clear',
     });
@@ -632,15 +632,15 @@ export default class FChatLib {
     this.commandHandlers[channel] = new CommandHandler(this, channel);
   }
 
-  async roll(channel: string, customDice: string): Promise<void> {
-    return this.sendData(fchatClientCommandTypes.ROLL_DICE, {
+  roll(channel: string, customDice: string): void {
+    this.sendData(fchatClientCommandTypes.ROLL_DICE, {
       channel,
       dice: customDice || '1d10',
     });
   }
 
-  async spinBottle(channel: string): Promise<void> {
-    return this.sendData(fchatClientCommandTypes.ROLL_DICE, {
+  spinBottle(channel: string): void {
+    this.sendData(fchatClientCommandTypes.ROLL_DICE, {
       channel,
       dice: 'bottle',
     });
@@ -781,11 +781,11 @@ export default class FChatLib {
     zodSchema: z.ZodType<unknown>,
     zodError: z.ZodError,
     channel: string
-  ): Promise<void> {
+  ): void {
     const schemaDescription = zodSchema.description ? `\nSchema Description: ${zodSchema.description}` : '';
     const errorMessage = zodError.issues.map((issue) => `-> ${issue.message || issue.code}`).join('\n');
 
-    return this.sendMessage(`Invalid Arguments for !${commandName}.${schemaDescription}\n${errorMessage}`, channel);
+    this.sendMessage(`Invalid Arguments for !${commandName}.${schemaDescription}\n${errorMessage}`, channel);
   }
 }
 
