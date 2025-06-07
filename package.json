@@ -23,6 +23,9 @@
   },
   "dependencies": {
     "@types/jasmine": "5.1.8",
+    "@types/node": "^22.15.30",
+    "@types/request": "^2.48.12",
+    "@types/ws": "^8.18.1",
     "async": "3.2.6",
     "caller-path": "4.0.0",
     "import-fresh": "3.3.1",
@@ -39,9 +42,6 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.28.0",
-    "@types/node": "^22.15.30",
-    "@types/request": "^2.48.12",
-    "@types/ws": "^8.18.1",
     "@typescript-eslint/eslint-plugin": "8.33.1",
     "@typescript-eslint/parser": "8.33.1",
     "eslint": "^9.28.0",
