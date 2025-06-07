@@ -7,7 +7,7 @@ export default class CommandHandler{
 
     channelName:string = "";
     fChatLibInstance:FChatLib;
-    pluginsLoaded:Array<IPlugin>;
+    pluginsLoaded:Array<IPlugin> = [];
     commandHandlerHelper:CommandHandlerHelper;
 
     constructor(parent:FChatLib, channel:string) {

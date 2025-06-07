@@ -2,7 +2,6 @@
 import CommandHandler from "./CommandHandler";
 import {IPlugin} from "./Interfaces/IPlugin";
 import {IConfig, LogLevel} from "./Interfaces/IConfig";
-import {IMsgEvent} from "./Interfaces/IMsgEvent";
 import ws, { WebSocket } from 'ws';
 import request from "request";
 import { writeFileSync, statSync, mkdirSync, existsSync, readFileSync } from 'node:fs';
@@ -230,14 +229,15 @@ export default class FChatLib {
     }
 
     private commandListener(args: SchemaForCommand<typeof fchatServerCommandTypes.MESSAGE_RECEIVED>) {
-        if(typeof this.commandHandlers[args.channel.toLowerCase()] !== "undefined")
+        const channel = args.channel.toLowerCase();
+        if(typeof this.commandHandlers[channel] !== "undefined")
         {
             try {
-                this.commandHandlers[args.channel.toLowerCase()].processCommand(args);
+                this.commandHandlers[channel].processCommand(args);
             }
             catch(ex){
                 console.log(ex);
-                this.throwError(args, ex.toString(), args.channel);
+                this.throwError(args, ex.toString(), channel);
             }
         }
     }
@@ -249,29 +249,32 @@ export default class FChatLib {
 
     //user management
     private addUsersToList(args: SchemaForCommand<typeof fchatServerCommandTypes.INITIAL_CHANNEL_DATA>) {
-        if(typeof this.usersInChannel[args.channel] !== "object"){this.usersInChannel[args.channel] = [];}
+        const channel = args.channel.toLowerCase();
+        if(typeof this.usersInChannel[channel] !== "object"){this.usersInChannel[channel] = [];}
         for(let i in args.users){
-            if(this.usersInChannel[args.channel].indexOf(args.users[i].identity) == -1){
-                this.usersInChannel[args.channel].push(args.users[i].identity);
+            if(this.usersInChannel[channel].indexOf(args.users[i].identity) == -1){
+                this.usersInChannel[channel].push(args.users[i].identity);
             }
         }
-        this.debugLog("Added users to list:", args.channel, args.users.map(user => user.identity));
+        this.debugLog("Added users to list:", channel, args.users.map(user => user.identity));
     }
 
     private addSingleUserToList(args: SchemaForCommand<typeof fchatServerCommandTypes.CHARACTER_JOINED_CHANNEL>) {
-        if(typeof this.usersInChannel[args.channel] !== "object"){this.usersInChannel[args.channel] = [];}
-        if(this.usersInChannel[args.channel].indexOf(args.character.identity) == -1){
-            this.usersInChannel[args.channel].push(args.character.identity);
+        const channel = args.channel.toLowerCase();
+        if(typeof this.usersInChannel[channel] !== "object"){this.usersInChannel[channel] = [];}
+        if(this.usersInChannel[channel].indexOf(args.character.identity) == -1){
+            this.usersInChannel[channel].push(args.character.identity);
         }
-        this.debugLog("Added user to list:", args.channel, args.character.identity);
+        this.debugLog("Added user to list:", channel, args.character.identity);
     }
 
     private removeUserFromList(args: SchemaForCommand<typeof fchatServerCommandTypes.CHARACTER_LEFT_CHANNEL>) {
-        if(typeof this.usersInChannel[args.channel] !== "object"){ return; }
-        if(this.usersInChannel[args.channel].indexOf(args.character) != -1){
-            this.usersInChannel[args.channel].splice(this.usersInChannel[args.channel].indexOf(args.character),1);
+        const channel = args.channel.toLowerCase();
+        if(typeof this.usersInChannel[channel] !== "object"){ return; }
+        if(this.usersInChannel[channel].indexOf(args.character) != -1){
+            this.usersInChannel[channel].splice(this.usersInChannel[channel].indexOf(args.character),1);
         }
-        this.infoLog("Removed user from list:", args.channel, args.character);
+        this.infoLog("Removed user from list:", channel, args.character);
     }
 
     private removeUserFromChannels(args: SchemaForCommand<typeof fchatServerCommandTypes.CHARACTER_WENT_OFFLINE>) { //remove if offline
@@ -285,7 +288,8 @@ export default class FChatLib {
     }
 
     private saveChannelNames(args: SchemaForCommand<typeof fchatServerCommandTypes.CHARACTER_JOINED_CHANNEL>) {
-        this.channelNames[args.channel] = args.title;
+        const channel = args.channel.toLowerCase();
+        this.channelNames[channel] = args.title;
     }
 
     private addUserListToGlobalState(args: SchemaForCommand<typeof fchatServerCommandTypes.CHARACTER_ONLINE_LIST>) {
@@ -344,28 +348,31 @@ export default class FChatLib {
 
     //permissions
     private addChatOPsToList(args: SchemaForCommand<typeof fchatServerCommandTypes.CHANNEL_OPERATOR_LIST>) {
-        if(typeof this.chatOPsInChannel[args.channel] !== "object"){this.chatOPsInChannel[args.channel] = [];}
+        const channel = args.channel.toLowerCase();
+        if(typeof this.chatOPsInChannel[channel] !== "object"){this.chatOPsInChannel[channel] = [];}
         for(let i in args.oplist){
-            if(this.chatOPsInChannel[args.channel].indexOf(args.oplist[i]) == -1){
-                this.chatOPsInChannel[args.channel].push(args.oplist[i]);
-                this.infoLog("Added chatOP to list:", args.channel, args.oplist[i]);
+            if(this.chatOPsInChannel[channel].indexOf(args.oplist[i]) == -1){
+                this.chatOPsInChannel[channel].push(args.oplist[i]);
+                this.infoLog("Added chatOP to list:", channel, args.oplist[i]);
             }
         }
     }
 
     private addChatOPToList(args: SchemaForCommand<typeof fchatServerCommandTypes.CHANNEL_OPERATOR_ADD>) {
-        if(typeof this.chatOPsInChannel[args.channel] !== "object"){this.chatOPsInChannel[args.channel] = [];}
-        if(this.chatOPsInChannel[args.channel].indexOf(args.character) == -1){
-            this.chatOPsInChannel[args.channel].push(args.character);
-            this.infoLog("Added chatOP to list:", args.channel, args.character);
+        const channel = args.channel.toLowerCase();
+        if(typeof this.chatOPsInChannel[channel] !== "object"){this.chatOPsInChannel[channel] = [];}
+        if(this.chatOPsInChannel[channel].indexOf(args.character) == -1){
+            this.chatOPsInChannel[channel].push(args.character);
+            this.infoLog("Added chatOP to list:", channel, args.character);
         }
     }
 
     private removeChatOPFromList(args: SchemaForCommand<typeof fchatServerCommandTypes.CHANNEL_OPERATOR_REMOVE>) {
-        if(typeof this.chatOPsInChannel[args.channel] !== "object"){ return; }
-        if(this.chatOPsInChannel[args.channel].indexOf(args.character) != -1){
-            this.chatOPsInChannel[args.channel].splice(this.chatOPsInChannel[args.channel].indexOf(args.character),1);
-            this.infoLog("Removed chatOP from list:", args.channel, args.character);
+        const channel = args.channel.toLowerCase();
+        if(typeof this.chatOPsInChannel[channel] !== "object"){ return; }
+        if(this.chatOPsInChannel[channel].indexOf(args.character) != -1){
+            this.chatOPsInChannel[channel].splice(this.chatOPsInChannel[channel].indexOf(args.character),1);
+            this.infoLog("Removed chatOP from list:", channel, args.character);
         }
     }
 
