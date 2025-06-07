@@ -43,6 +43,9 @@ export const orientations = [
 export const characterOrientationSchema = z
   .enum(orientations)
   .describe("The orientation of the character.");
+
+export type CharacterOrientation = z.infer<typeof characterOrientationSchema>;
+
 export const languages = [
   "Arabic",
   "Chinese",
@@ -64,6 +67,8 @@ export const characterLanguageSchema = z
   .enum(languages)
   .describe("The language of the character.");
 
+export type CharacterLanguage = z.infer<typeof characterLanguageSchema>;
+
 export const roles = [
   "Always submissive",
   "Usually submissive",
@@ -75,6 +80,8 @@ export const roles = [
 export const characterRoleSchema = z
   .enum(roles)
   .describe("The role of the character.");
+
+export type CharacterRole = z.infer<typeof characterRoleSchema>;
 
 export const positions = [
   "Always Bottom",
@@ -88,6 +95,8 @@ export const characterPositionSchema = z
   .enum(positions)
   .describe("The position of the character.");
 
+export type CharacterPosition = z.infer<typeof characterPositionSchema>;
+
 export const furryPreferences = [
   "No furry characters, just humans",
   "No humans, just furry characters",
@@ -99,6 +108,8 @@ export const furryPreferences = [
 export const characterFurryPreferenceSchema = z
   .enum(furryPreferences)
   .describe("The furry preference of the character.");
+
+export type CharacterFurryPreference = z.infer<typeof characterFurryPreferenceSchema>;
 
 export const statuses = ["online", "looking", "busy", "dnd", "idle", "away", "crown"] as const;
 
@@ -116,3 +127,13 @@ export type CharacterStatus = z.infer<typeof statusSchema>;
 export const typingStatuses = ["clear", "paused", "typing"] as const;
 
 export const typingStatusSchema = z.enum(typingStatuses).describe("The typing status of the character.");
+
+export type TypingStatus = z.infer<typeof typingStatusSchema>;
+
+export const diceSchema = z.string().describe("The dice to roll. Example: 1d10").regex(/^\d+d\d+$/);
+
+export const bottleSchema = z.literal("bottle").describe("The bottle to spin. Example: bottle");
+
+export const diceOrBottleSchema = z.union([diceSchema, bottleSchema]).describe("The dice to roll or the bottle to spin. Example: 1d10 or bottle");
+
+export type DiceOrBottle = z.infer<typeof diceOrBottleSchema>;

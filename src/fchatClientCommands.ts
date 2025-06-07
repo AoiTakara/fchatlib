@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { characterFurryPreferenceSchema, characterGenderSchema, characterLanguageSchema, characterOrientationSchema, characterRoleSchema, channelSchema, roomModeSchema, statusSchema, CharacterStatus } from './commonSchemas';
+import { characterFurryPreferenceSchema, characterGenderSchema, characterLanguageSchema, characterOrientationSchema, characterRoleSchema, channelSchema, roomModeSchema, statusSchema, CharacterStatus, diceOrBottleSchema } from './commonSchemas';
 
 
 /** The entire list of valid F-Chat client commands.
@@ -87,8 +87,8 @@ export const fchatClientCommandTypes = {
     STATUS: "STA",
     /** Timeout - Times out a user for a given amount minutes. */
     TIMEOUT: "TMO",
-    /** Typing Private Notification - 'user x is typing/stopped typing/has entered text' for private messages. */
-    TYPING_PRIVATE_NOTIFICATION: "TPN",
+    /** Typing Status - 'user x is typing/stopped typing/has entered text' for private messages. */
+    TYPING_STATUS: "TPN",
     /** Unban - Unbans a character's account from the server. */
     UNBAN: "UNB",
     /** Uptime - Requests info about how long the server has been running. */
@@ -417,7 +417,7 @@ export const RollDiceCommand = {
     type: fchatClientCommandTypes.ROLL_DICE,
     schema: z.object({
         channel: channelSchema.describe("Which channel the command is being used in."),
-        dice: z.string().describe("The dice specification or 'bottle' for bottle spin.")
+        dice: diceOrBottleSchema
     }).describe(`Roll dice or spin the bottle.
         Warning: dice can be: bottle: selects one person in the room, other than the person sending the command. #d##: rolls # dice with ## sides, each. #d##+#d##: rolls more than one size of dice. #d##+###: adds a number (###) to the roll. # can be any number 1-9. ## can be any number 1-500. ### can be any number up to 10000. It is possible to add up to 20 sets of dice and/or numbers. As with all commands that refer to a specific channel, official/public channels use the name, but unofficial/private/open private rooms use the channel ID, which can be gotten from ORS.
         Example: RLL {"channel":"ADH-dce8eb7af86213ac4c15","dice":"bottle"}
@@ -497,7 +497,7 @@ export const TimeoutCommand = {
 } as const;
 
 export const TypingPrivateNotificationCommand = {
-    type: fchatClientCommandTypes.TYPING_PRIVATE_NOTIFICATION,
+    type: fchatClientCommandTypes.TYPING_STATUS,
     schema: z.object({
         character: z.string().describe("The character to send typing status to."),
         status: z.enum(["clear", "paused", "typing"]).describe("The typing status.")
@@ -606,7 +606,7 @@ export const commandTypeToCommandObjectMap = {
     /** Timeout - Times out a user for a given amount minutes. */
     [fchatClientCommandTypes.TIMEOUT]: TimeoutCommand,
     /** Typing Private Notification - 'user x is typing/stopped typing/has entered text' for private messages. */
-    [fchatClientCommandTypes.TYPING_PRIVATE_NOTIFICATION]: TypingPrivateNotificationCommand,
+    [fchatClientCommandTypes.TYPING_STATUS]: TypingPrivateNotificationCommand,
     /** Unban - Unbans a character's account from the server. */
     [fchatClientCommandTypes.UNBAN]: UnbanCommand,
     /** Uptime - Requests info about how long the server has been running. */
@@ -615,6 +615,7 @@ export const commandTypeToCommandObjectMap = {
 
 export type FChatClientCommandKey = keyof typeof fchatClientCommandTypes;
 export type FChatClientCommandType = typeof fchatClientCommandTypes[FChatClientCommandKey];
+export type MessageCommands = Pick<typeof fchatClientCommandTypes, "MESSAGE" | "PRIVATE_MESSAGE" | "LOOKING_FOR_ROLEPLAY">;
 
 /**
  * Get the command object definition for a given command.

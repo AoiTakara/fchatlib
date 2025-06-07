@@ -8,11 +8,14 @@ import request from "request";
 import { writeFileSync, statSync, mkdirSync, existsSync, readFileSync } from 'node:fs';
 import { FChatServerCommandType, fchatServerCommandTypes, getCommandObjectForCommand, type SchemaForCommand} from './FchatServerCommands'
 import { CharacterGender, CharacterStatus } from './commonSchemas';
+import { ClientCommandSchema, FChatClientCommandKey, FChatClientCommandType, fchatClientCommandTypes, getClientCommand } from "./fchatClientCommands";
 
 export type FChatListener<T> = (args: T) => void | Promise<void>;
 
 const FCHAT_SOCKET_URL = 'wss://chat.f-list.net/chat2';
 
+/** These are messages that we will always log when receiving. */
+export const IMPORTANT_SERVER_MESSAGES = [fchatServerCommandTypes.ERROR, fchatServerCommandTypes.SYSTEM_MESSAGE, fchatServerCommandTypes.ADMIN_BROADCAST] as const;
 export default class FChatLib {
 
     /** Listeners for events that aren't caught by any other listener. */
@@ -78,7 +81,7 @@ export default class FChatLib {
         return new Promise(resolve => setTimeout(resolve, ms));
     }
 
-    async sendData(messageType: string, content: string):Promise<void>{
+    async sendData<T extends FChatClientCommandType>(command: T, content?: ClientCommandSchema<T>):Promise<void>{
         this.commandsInQueue++;
         let currentTime = parseInt(process.uptime().toString(), 10);
 
@@ -90,7 +93,7 @@ export default class FChatLib {
 
         this.lastTimeCommandReceived = parseInt(process.uptime().toString(), 10);
         this.commandsInQueue--;
-        this.sendWS(messageType, content);
+        this.sendCommand(command, content);
     }
 
     constructor(configuration:IConfig){
@@ -189,6 +192,10 @@ export default class FChatLib {
         }
     }
 
+    public alwaysLog(...args:any[]):void{
+        console.info(...args);
+    }
+
     public errorLog(...args:any[]):void{
         if (this.logLevel === "debug" || this.logLevel === "info" || this.logLevel === "error") {
             console.error(...args);
@@ -201,12 +208,12 @@ export default class FChatLib {
 
     private async joinChannelOnConnect() {
         for(let room of this.channels.keys()) {
-            this.sendWS('JCH', { channel: room.toLowerCase() });
+            this.sendCommand(fchatClientCommandTypes.JOIN_CHANNEL, { channel: room.toLowerCase() });
         }
     }
 
-    setStatus(status:string, message:string){
-        this.sendWS('STA', { status: status, statusmsg: message });
+    setStatus(status:CharacterStatus, message:string){
+        this.sendCommand(fchatClientCommandTypes.STATUS, { status: status, statusmsg: message });
         this.infoLog("Set status to:", status, "with message:", message);
     }
 
@@ -214,7 +221,7 @@ export default class FChatLib {
         if(this.channels.get(channel.toLowerCase()) == null){
             this.channels.set(channel.toLowerCase(), []);
         }
-        this.sendWS('JCH', { channel: channel.toLowerCase() });
+        this.sendCommand(fchatClientCommandTypes.JOIN_CHANNEL, { channel: channel.toLowerCase() });
         this.commandHandlers[channel.toLowerCase()] = new CommandHandler(this, channel);
         this.infoLog("Joined new channel:", channel);
 
@@ -388,11 +395,27 @@ export default class FChatLib {
         });
     }
 
-    /** Returns true if the message was sent, false if the websocket is not ready */
-    sendWS(command: string, object?: unknown): boolean {
-        const message = command + ' ' + (object !== undefined ? JSON.stringify(object) : '');
+    sendCommand(command: FChatClientCommandType, object?: ClientCommandSchema<FChatClientCommandType>): boolean {
+        const schema = getClientCommand(command).schema;
+        if (!schema) {
+            this.errorLog("Command not found:", command);
+            return false;
+        }
+
+        const parsed = schema.safeParse(object);
+        if(!parsed.success){
+            this.errorLog("Error parsing command:", command, "with argument:", object);
+            for (const issue of parsed.error.issues) {
+                const path = issue.path.join('.');
+                const issueMessage = issue.message;
+                this.errorLog(`Issue: ${issueMessage}, Path: ${path}, Code: ${issue.code}`);
+            }
+            return false;
+        }
+
+        const message = command + ' ' + JSON.stringify(parsed.data);
         if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-            this.debugLog("Websocket not connected, skipping message |", message);
+            this.errorLog("Websocket not connected, skipping message |", message);
             return false;
         }
 
@@ -402,44 +425,27 @@ export default class FChatLib {
     }
 
     sendMessage(message: string, channel: string):void{
-        let json:any = {};
-        json.channel = channel;
-        json.message = message;
-        this.sendData('MSG', json);
+        this.sendData(fchatClientCommandTypes.MESSAGE, { channel, message });
     }
 
     sendPrivMessage(message: string, character: string):void{
-        let json:any = {};
-        json.message = message;
-        json.recipient = character;
-        this.sendData('PRI', json);
+        this.sendData(fchatClientCommandTypes.PRIVATE_MESSAGE, { message, recipient: character });
     }
 
     getProfileData(character: string):void{
-        let json:any = {};
-        json.character = character;
-        this.sendData('PRO', json);
+        this.sendData(fchatClientCommandTypes.PROFILE_REQUEST, { character });
     }
 
     setIsTyping(){
-        let json:any = {};
-        json.character = this.config.character;
-        json.status = "typing"
-        this.sendData('TPN', json);
+        this.sendData(fchatClientCommandTypes.TYPING_STATUS, { character: this.config.character, status: 'typing'});
     }
 
     setIsTypingPaused(){
-        let json:any = {};
-        json.character = this.config.character;
-        json.status = "paused"
-        this.sendData('TPN', json);
+        this.sendData(fchatClientCommandTypes.TYPING_STATUS, {character: this.config.character, status: 'paused'});
     }
 
     setIsNotTyping(){
-        let json:any = {};
-        json.character = this.config.character;
-        json.status = "clear"
-        this.sendData('TPN', json);
+        this.sendData(fchatClientCommandTypes.TYPING_STATUS, { character: this.config.character, status: 'clear'});
     }
 
     getUserList(channel: string):string[]{
@@ -486,11 +492,18 @@ export default class FChatLib {
         this.commandHandlers[channel] = new CommandHandler(this, channel);
     }
 
-    roll(customDice, channel):void{
-        let json:any = {};
-        json.dice = customDice || "1d10";
-        json.channel = channel;
-        this.sendData("RLL", json);
+    roll(customDice?: string, channel?: string):void{
+        this.sendData(fchatClientCommandTypes.ROLL_DICE, {
+            channel,
+            dice: customDice || "1d10"
+        });
+    }
+
+    spinBottle(channel?: string):void{
+        this.sendData(fchatClientCommandTypes.ROLL_DICE, {
+            channel,
+            dice: "bottle"
+        });
     }
 
     updateRoomsConfig():void{
@@ -522,13 +535,13 @@ export default class FChatLib {
 
         this.ws.on('open', (data) => {
             this.infoLog("Websocket opened, sending IDN with ticket", idnObject);
-            if (!this.sendWS('IDN', idnObject)) {
+            if (!this.sendCommand(fchatClientCommandTypes.IDENTIFY, idnObject)) {
                 this.infoLog("Websocket not ready, retrying in 1 second");
                 setTimeout(() => { this.startWebsockets(idnObject); }, 1000);
                 return;
             }
             clearInterval(this.pingInterval);
-            this.pingInterval = setInterval(() => { this.sendWS('PIN'); }, 25000);
+            this.pingInterval = setInterval(() => { this.sendCommand(fchatClientCommandTypes.PING); }, 25000);
         });
 
         this.ws.on('close', () => {
@@ -555,6 +568,11 @@ export default class FChatLib {
 
                     if(dataString.substring(command.length).trim() != ""){
                         argument = JSON.parse(dataString.substring(command.length).trim());
+                    }
+
+                    // @ts-expect-error - command is a string, but we want to check if it's in the importantMessages array
+                    if (IMPORTANT_SERVER_MESSAGES.includes(command)) {
+                        this.alwaysLog("Important message received:", command, argument);
                     }
 
                     // Handle all listeners in parallel for better performance
