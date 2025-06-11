@@ -174,6 +174,7 @@ export class CommandHandlerHelper {
     }
   }
 
+  // TODO: This is currently broken. It isn't returning any functions from CommandHandler or any plugins
   internalGetAllFuncs(obj: any) {
     let props: string[] = [];
 

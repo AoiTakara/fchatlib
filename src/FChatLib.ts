@@ -112,7 +112,7 @@ export default class FChatLib {
     SchemaForCommand<typeof fchatServerCommandTypes.CHARACTER_ONLINE_LIST>['characters'][number]
   > = {};
 
-  channels: Record<string, Array<IPlugin>> = {};
+  public readonly channels: Record<string, Array<IPlugin>> = {};
   private channelNames: Record<string, string> = {};
 
   private ws: WebSocket | null = null;
@@ -120,24 +120,55 @@ export default class FChatLib {
   private pingInterval: Timeout | null = null;
 
   /** The number of seconds to wait between messages. */
-  floodLimitSeconds: number = 2.0;
-  private lastTimeCommandReceivedSeconds: number = Number.MAX_VALUE;
-  private commandsInQueue: number = -1;
-
-  private timeout(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
-  }
+  public floodLimitSeconds: number = 2.0;
+  /**
+   * The queue of commands to send to the server. This list will be processed in order, but only one command at a time in order
+   * to avoid flooding the server.
+   */
+  private readonly commandQueue: (() => void)[] = [];
+  /** The timeout for the command queue. */
+  private commandQueueTimeout: Timeout | null = null;
 
   /** Sends a command to the server, but waits for the flood limit in seconds before sending.. */
-  sendData<T extends FChatClientCommandType>(command: T, content?: ClientCommandSchema<T>): void {
-    this.commandsInQueue++;
-
-    const timeToWaitSeconds = Math.max(0, this.commandsInQueue) * this.floodLimitSeconds;
-    setTimeout(() => {
-      this.commandsInQueue--;
+  public queueCommand<T extends FChatClientCommandType>(command: T, content?: ClientCommandSchema<T>): void {
+    this.commandQueue.push(() => {
       this.sendCommand(command, content);
-      this.lastTimeCommandReceivedSeconds = Math.floor(process.uptime());
-    }, timeToWaitSeconds * 1000);
+    });
+    this.processCommandQueue();
+  }
+
+  /**
+   * Loops through the command queue and sends the commands to the websocket. Only processes one command at a time based
+   * on the flood limit.
+   */
+  private processCommandQueue(): void {
+    // If there are no commands in the queue, don't do anything.
+    if (this.commandQueue.length === 0) {
+      return;
+    }
+    // If we're already waiting for a command, don't do anything. We will get to it later.
+    if (this.commandQueueTimeout) {
+      return;
+    }
+    // If we're not waiting for a command, set a timeout to process the command queue.
+    this.commandQueueTimeout = setTimeout(() => {
+      const command = this.commandQueue.shift();
+      if (command) {
+        command();
+      }
+      this.commandQueueTimeout = null;
+      // Process the next command in the queue.
+      this.processCommandQueue();
+    }, this.floodLimitSeconds * 1000);
+  }
+
+  /** Clears the command queue, which will abort all messages in the queue and stop processing the queue. */
+  public clearCommandQueue(): void {
+    if (this.commandQueueTimeout) {
+      clearTimeout(this.commandQueueTimeout);
+      this.commandQueueTimeout = null;
+    }
+    this.commandQueue.length = 0;
   }
 
   constructor(configuration: IConfig) {
@@ -420,8 +451,7 @@ export default class FChatLib {
     }
 
     if (character !== '') {
-      this.users[character] ??= [character, 'None', 'online', ''];
-      const user = this.users[character]!;
+      const user = this.users[character] ?? [character, 'None', 'online', ''];
 
       if (gender !== '') {
         user[1] = gender as CharacterGender;
@@ -435,6 +465,7 @@ export default class FChatLib {
         user[3] = statusmsg;
       }
 
+      this.users[character] = user;
       this.debugLog('Updated user state:', character, gender, status, statusmsg);
     }
   }
@@ -549,36 +580,36 @@ export default class FChatLib {
   }
 
   sendMessage(message: string, channel: string): void {
-    this.sendData(fchatClientCommandTypes.MESSAGE, { channel, message });
+    this.queueCommand(fchatClientCommandTypes.MESSAGE, { channel, message });
   }
 
   sendPrivMessage(message: string, character: string): void {
-    this.sendData(fchatClientCommandTypes.PRIVATE_MESSAGE, {
+    this.queueCommand(fchatClientCommandTypes.PRIVATE_MESSAGE, {
       message,
       recipient: character,
     });
   }
 
   getProfileData(character: string): void {
-    this.sendData(fchatClientCommandTypes.PROFILE_REQUEST, { character });
+    this.queueCommand(fchatClientCommandTypes.PROFILE_REQUEST, { character });
   }
 
   setIsTyping(): void {
-    this.sendData(fchatClientCommandTypes.TYPING_STATUS, {
+    this.queueCommand(fchatClientCommandTypes.TYPING_STATUS, {
       character: this.config.character,
       status: 'typing',
     });
   }
 
   setIsTypingPaused(): void {
-    this.sendData(fchatClientCommandTypes.TYPING_STATUS, {
+    this.queueCommand(fchatClientCommandTypes.TYPING_STATUS, {
       character: this.config.character,
       status: 'paused',
     });
   }
 
   setIsNotTyping(): void {
-    this.sendData(fchatClientCommandTypes.TYPING_STATUS, {
+    this.queueCommand(fchatClientCommandTypes.TYPING_STATUS, {
       character: this.config.character,
       status: 'clear',
     });
@@ -633,14 +664,14 @@ export default class FChatLib {
   }
 
   roll(channel: string, customDice: string): void {
-    this.sendData(fchatClientCommandTypes.ROLL_DICE, {
+    this.queueCommand(fchatClientCommandTypes.ROLL_DICE, {
       channel,
       dice: customDice || '1d10',
     });
   }
 
   spinBottle(channel: string): void {
-    this.sendData(fchatClientCommandTypes.ROLL_DICE, {
+    this.queueCommand(fchatClientCommandTypes.ROLL_DICE, {
       channel,
       dice: 'bottle',
     });
