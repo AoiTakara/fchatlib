@@ -568,7 +568,7 @@ export default class FChatLib {
       return false;
     }
 
-    const message = `${command} ${JSON.stringify(parsed.data)}`;
+    const message = `${command} ${parsed.data ? JSON.stringify(parsed.data) : ''}`;
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
       this.errorLog('Websocket not connected, skipping message |', message);
       return false;

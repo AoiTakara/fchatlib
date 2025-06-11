@@ -174,15 +174,13 @@ export class CommandHandlerHelper {
     }
   }
 
-  // TODO: This is currently broken. It isn't returning any functions from CommandHandler or any plugins
   internalGetAllFuncs(obj: any) {
     let props: string[] = [];
 
-    const propertyNames = Object.getOwnPropertyNames(obj).concat(
-      Object.getOwnPropertySymbols(obj).map((s) => s.toString())
-    );
-
     do {
+      const propertyNames = Object.getOwnPropertyNames(obj).concat(
+        Object.getOwnPropertySymbols(obj).map((s) => s.toString())
+      );
       const ignoreProperties = [...(obj.ignoreProperties ?? []), ...defaultIgnoreProperties];
       const l = propertyNames.sort().filter(
         (p, i, arr) =>
