@@ -2,8 +2,8 @@
   "name": "@aoitakara/fchatlib",
   "version": "2.0.1-6",
   "description": "FChatLib",
-  "main": "dist/FChatLib.js",
-  "types": "dist/FChatLib.d.ts",
+  "main": "dist/src/FChatLib.js",
+  "types": "dist/src/FChatLib.d.ts",
   "author": {
     "name": "AoiTakara",
     "email": "aoi.takara.vtuber@gmail.com"

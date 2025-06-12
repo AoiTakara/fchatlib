@@ -22,5 +22,5 @@
     "skipLibCheck": true,
     "pretty": true
   },
-  "exclude": ["node_modules", "node_modules/**", "dist", "eslint.config.js", ".prettierrc.js"]
+  "exclude": ["node_modules", "node_modules/**", "dist", "eslint.config.js", ".prettierrc.js", "package.json"]
 }
