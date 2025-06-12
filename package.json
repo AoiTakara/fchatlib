@@ -13,6 +13,7 @@
     "url": "git+https://github.com/AoiTakara/fchatlib.git"
   },
   "scripts": {
+    "build:prod": "rimraf dist && tsc --project tsconfig_production.json",
     "build": "rimraf dist && tsc",
     "start": "rimraf dist && tsc && node dist/test/myTypescriptApp.js",
     "lint": "eslint src test --ext .ts",

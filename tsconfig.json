@@ -1,27 +1,4 @@
 {
-  "compilerOptions": {
-    "module": "commonjs",
-    "moduleResolution": "node",
-    "target": "es2020",
-    "lib": ["es2020"],
-    "sourceMap": true,
-    "types": ["node", "jasmine"],
-    "declaration": true,
-    "outDir": "./dist",
-    "esModuleInterop": true,
-    "allowSyntheticDefaultImports": true,
-    "forceConsistentCasingInFileNames": true,
-    "strict": true,
-    "noImplicitAny": true,
-    "strictNullChecks": true,
-    "noImplicitReturns": false,
-    "noFallthroughCasesInSwitch": true,
-    "noUncheckedIndexedAccess": true,
-    "exactOptionalPropertyTypes": true,
-    "resolveJsonModule": true,
-    "skipLibCheck": true,
-    "pretty": true
-  },
-  "exclude": ["node_modules", "node_modules/**", "dist", "eslint.config.js", ".prettierrc.js"],
+  "extends": "./tsconfig.base.json",
   "include": ["./src/**/*.ts", "./test/**/*.ts"]
 }
