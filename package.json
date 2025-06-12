@@ -1,6 +1,6 @@
 {
   "name": "@aoitakara/fchatlib",
-  "version": "2.0.1-6",
+  "version": "2.0.1-7",
   "description": "FChatLib",
   "main": "dist/src/FChatLib.js",
   "types": "dist/src/FChatLib.d.ts",
