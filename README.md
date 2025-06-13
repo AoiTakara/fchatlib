@@ -1,5 +1,18 @@
 ﻿# FChatLib
 
+A minimalist typescript library to connect to F-list chat, and interact with F-list as well as other users.
+
+Note that this is a fork of https://github.com/AelithBlanchett/fchatlib, so credit where credit is due for most of the original code.
+
+Changes in this fork:
+- Remove the "plugin" system, which adds complexity and is too opinionated on how to run bots
+- Fix all of the types and fully implement types for public commands
+- Simplify internal code for easier maintainability
+- Works on modern node environments (Up to v22 as of now)
+- Adds zod Schemas to all F-Chat server and client commands for type saftey and runtime safety.
+
+# OLD README, BEWARE OUT OF DATE INSTRUCTIONS
+
 Small library written in Typescript to work out with F-list's chat system.
 
 There's already a working plugin example [here](https://github.com/AelithBlanchett/FChatBot-ExamplePlugin)
